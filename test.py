@@ -198,6 +198,107 @@ def create_aligned_edges(polygons, num_pairs):
 
     return modified_polygons
 
+def create_overlapping_pairs(polygons, num_pairs):
+    """Adjusts specified polygon pairs to partially overlap."""
+    modified_polygons = polygons[:]
+
+    if num_pairs == 0:
+        return polygons
+        
+    num_polygons = len(polygons)
+    if num_pairs * 2 > num_polygons:
+        print(f"Warning: Cannot create {num_pairs} pairs. Reducing to {num_polygons // 2}.")
+        num_pairs = num_polygons // 2
+
+    indices = list(range(num_polygons))
+    random.shuffle(indices)
+    modified_polygons = polygons[:]
+    
+    MAX_ATTEMPTS_PER_PAIR = 20
+
+    for i in range(num_pairs):
+        idx_a = indices[i*2]
+        idx_b = indices[i*2 + 1]
+        
+        pair_overlap = False
+        for _ in range(MAX_ATTEMPTS_PER_PAIR):
+
+    # for i in range(0, len(indices_to_use), 2):
+        # idx_a = indices_to_use[i]
+        # idx_b = indices_to_use[i+1]
+
+            poly_a = modified_polygons[idx_a]
+            poly_b = modified_polygons[idx_b]
+
+            target_point = poly_a.centroid
+            dist_b = random.uniform(0, poly_b.exterior.length)
+            source_point = poly_b.exterior.interpolate(dist_b)
+            
+            x_off = target_point.x - source_point.x
+            y_off = target_point.y - source_point.y
+            
+            moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
+            modified_polygons[idx_b] = moved_poly_b
+
+            if poly_a.overlaps(moved_poly_b):
+                modified_polygons[idx_b] = moved_poly_b
+                pair_overlap = True
+                break
+        
+    return modified_polygons
+
+def create_contained_pairs(polygons, num_pairs):
+    """Adjusts specified polygon pairs so one is contained within another."""
+    modified_polygons = polygons[:]
+
+    if num_pairs == 0:
+        return polygons
+        
+    num_polygons = len(polygons)
+    if num_pairs * 2 > num_polygons:
+        print(f"Warning: Cannot create {num_pairs} pairs. Reducing to {num_polygons // 2}.")
+        num_pairs = num_polygons // 2
+
+    indices = list(range(num_polygons))
+    random.shuffle(indices)
+    modified_polygons = polygons[:]
+    
+    MAX_ATTEMPTS_PER_PAIR = 20
+
+    for i in range(num_pairs):
+        idx_1 = indices[i*2]
+        idx_2 = indices[i*2 + 1]
+        
+        pair_overlap = False
+        # for _ in range(MAX_ATTEMPTS_PER_PAIR):
+
+    # for i in range(0, len(indices_to_use), 2):
+        # idx_1 = indices_to_use[i]
+        # idx_2 = indices_to_use[i+1]
+        
+        if modified_polygons[idx_1].area > modified_polygons[idx_2].area:
+            idx_a, idx_b = idx_1, idx_2 # A is container, B is contained
+        else:
+            idx_a, idx_b = idx_2, idx_1
+            
+        poly_a = modified_polygons[idx_a]
+        poly_b = modified_polygons[idx_b]
+        
+        # Scale down the smaller polygon to ensure it fits
+        scale_factor = min(0.5, math.sqrt(poly_a.area / poly_b.area) * 0.5)
+        scaled_poly_b = affinity.scale(poly_b, xfact=scale_factor, yfact=scale_factor, origin='center')
+
+        # Move to representative_point, which is guaranteed to be inside the polygon
+        target_point = poly_a.representative_point()
+        source_centroid = scaled_poly_b.centroid
+        x_off = target_point.x - source_centroid.x
+        y_off = target_point.y - source_centroid.y
+        
+        final_poly_b = affinity.translate(scaled_poly_b, xoff=x_off, yoff=y_off)
+        modified_polygons[idx_b] = final_poly_b
+        
+    return modified_polygons
+
 def plot_polygons(polygons, canvas_bounds, save_path):
     """
     Visualizes the generated polygons on a 2D plot.
@@ -318,8 +419,13 @@ if __name__ == '__main__':
     )
 
     print(f"Adjusting {NUM_TOUCHING_PAIRS} pairs to make them border...")
-    # final_polygons = create_touching_pairs(random_polygons, NUM_TOUCHING_PAIRS)
-    final_polygons = create_aligned_edges(random_polygons, NUM_TOUCHING_PAIRS)
+    final_polygons = create_touching_pairs(random_polygons, NUM_TOUCHING_PAIRS)
+    # final_polygons = create_aligned_edges(random_polygons, NUM_TOUCHING_PAIRS)
+    # final_polygons = create_overlapping_pairs(random_polygons, NUM_TOUCHING_PAIRS)
+    # final_polygons = create_contained_pairs(random_polygons, NUM_TOUCHING_PAIRS)
+
+    final_polygons.sort(key=lambda p: p.area, reverse=True)
+
     
     print(f"Successfully generated {len(random_polygons)} polygons.")
     print("Displaying results...")
