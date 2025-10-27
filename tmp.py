@@ -63,6 +63,13 @@ def generate_random_points(canvas_bounds, num_points):
         points.append(Point(x, y))
     return points
 
+def generate_one_point(canvas_bounds):
+    """Generates a single random Point object."""
+    min_x, min_y, max_x, max_y = canvas_bounds
+    x = random.uniform(min_x, max_x)
+    y = random.uniform(min_y, max_y)
+    return Point(x, y)
+
 # --- Line Generation ---
 
 def generate_random_lines(
@@ -73,41 +80,55 @@ def generate_random_lines(
     segment_range
 ):
     """Generates lists of straight and/or curly LineString objects."""
-    min_x, min_y, max_x, max_y = canvas_bounds
     straight_lines = []
     curly_lines = []
     
     for _ in range(num_lines):
         is_straight = straight_only or (not straight_only and random.choice([True, False]))
-        
         if is_straight:
-            x1 = random.uniform(min_x, max_x)
-            y1 = random.uniform(min_y, max_y)
-            x2 = random.uniform(min_x, max_x)
-            y2 = random.uniform(min_y, max_y)
-            straight_lines.append(LineString([(x1, y1), (x2, y2)]))
+            line = generate_one_line(canvas_bounds, True, length_range, segment_range)
+            straight_lines.append(line)
         else:
-            num_segments = random.randint(segment_range[0], segment_range[1])
-            seg_len = random.uniform(length_range[0], length_range[1]) / num_segments
-            
-            cx = random.uniform(min_x, max_x)
-            cy = random.uniform(min_y, max_y)
-            vertices = [(cx, cy)]
-            angle = random.uniform(0, 2 * math.pi)
-            
-            for _ in range(num_segments - 1):
-                angle += random.uniform(-math.pi / 2, math.pi / 2)
-                nx = cx + seg_len * math.cos(angle)
-                ny = cy + seg_len * math.sin(angle)
-                nx = max(min_x, min(nx, max_x))
-                ny = max(min_y, min(ny, max_y))
-                vertices.append((nx, ny))
-                cx, cy = nx, ny
-            
-            if len(vertices) > 1:
-                curly_lines.append(LineString(vertices))
+            line = generate_one_line(canvas_bounds, False, length_range, segment_range)
+            if line:
+                curly_lines.append(line)
 
     return straight_lines, curly_lines
+
+def generate_one_line(canvas_bounds, straight_only, length_range, segment_range):
+    """Generates a single random LineString object."""
+    min_x, min_y, max_x, max_y = canvas_bounds
+    is_straight = straight_only or (not straight_only and random.choice([True, False]))
+    
+    if is_straight:
+        x1 = random.uniform(min_x, max_x)
+        y1 = random.uniform(min_y, max_y)
+        x2 = random.uniform(min_x, max_x)
+        y2 = random.uniform(min_y, max_y)
+        return LineString([(x1, y1), (x2, y2)])
+    else:
+        num_segments = random.randint(segment_range[0], segment_range[1])
+        seg_len = random.uniform(length_range[0], length_range[1]) / num_segments
+        
+        cx = random.uniform(min_x, max_x)
+        cy = random.uniform(min_y, max_y)
+        vertices = [(cx, cy)]
+        angle = random.uniform(0, 2 * math.pi)
+        
+        for _ in range(num_segments - 1):
+            angle += random.uniform(-math.pi / 2, math.pi / 2)
+            nx = cx + seg_len * math.cos(angle)
+            ny = cy + seg_len * math.sin(angle)
+            nx = max(min_x, min(nx, max_x))
+            ny = max(min_y, min(ny, max_y))
+            vertices.append((nx, ny))
+            cx, cy = nx, ny
+        
+        if len(vertices) > 1:
+            return LineString(vertices)
+        else:
+            # Fallback to a simple line if random walk fails
+            return generate_one_line(canvas_bounds, True, length_range, segment_range)
 
 # --- Polygon Relationship Functions ---
 
@@ -209,6 +230,41 @@ def create_contained_pairs(polygons, indices_to_use):
         
     return modified_polygons
 
+# --- (NEW) Geometry Relationship Functions ---
+
+def move_line_into_poly(container_poly, line_to_move):
+    """Moves and scales a single line to be contained within a polygon."""
+    # Scale down the line to ensure it fits
+    p_minx, p_miny, p_maxx, p_maxy = container_poly.bounds
+    l_minx, l_miny, l_maxx, l_maxy = line_to_move.bounds
+    
+    poly_width = p_maxx - p_minx
+    poly_height = p_maxy - p_miny
+    line_width = l_maxx - l_minx if (l_maxx - l_minx) > 1e-6 else 1.0
+    line_height = l_maxy - l_miny if (l_maxy - l_miny) > 1e-6 else 1.0
+
+    scale_factor = min((poly_width / line_width) * 0.5, (poly_height / line_height) * 0.5)
+    scaled_line = affinity.scale(line_to_move, xfact=scale_factor, yfact=scale_factor, origin='center')
+
+    # Move to representative_point, which is guaranteed to be inside the polygon
+    target_point = container_poly.representative_point()
+    source_centroid = scaled_line.centroid
+    x_off = target_point.x - source_centroid.x
+    y_off = target_point.y - source_centroid.y
+    
+    final_line = affinity.translate(scaled_line, xoff=x_off, yoff=y_off)
+    return final_line
+
+def move_point_into_poly(container_poly, point_to_move):
+    """Moves a single point to be contained within a polygon."""
+    # Move to representative_point
+    target_point = container_poly.representative_point()
+    x_off = target_point.x - point_to_move.x
+    y_off = target_point.y - point_to_move.y
+    
+    final_point = affinity.translate(point_to_move, xoff=x_off, yoff=y_off)
+    return final_point
+
 # --- Plotting Function ---
 
 def plot_geometries(all_geometries, canvas_bounds, title_info=""):
@@ -236,9 +292,7 @@ def plot_geometries(all_geometries, canvas_bounds, title_info=""):
     
     ax.set_title(f"Generated Geometries ({title_info})")
     ax.set_xlabel("X Coordinate"); ax.set_ylabel("Y Coordinate")
-    plt.grid(True)
-
-    plt.savefig('./polygons.png')
+    plt.grid(True); plt.show()
 
 # --- Database Function ---
 
@@ -318,21 +372,25 @@ if __name__ == '__main__':
     }
     
     # --- Polygon Controls ---
-    NUM_POLYGONS = 4                 
+    NUM_POLYGONS = 15                 
     VERTEX_RANGE = (3, 6)             
     RADIUS_RANGE = (5, 12)            
-    CREATE_REGULAR_SHAPES = False
+    CREATE_REGULAR_SHAPES = True
     
     # --- Polygon Relationship Controls ---
-    NUM_ALIGNED_PAIRS = 0
-    NUM_OVERLAPPING_PAIRS = 0
-    NUM_CONTAINED_PAIRS = 1
+    NUM_ALIGNED_PAIRS = 2
+    NUM_OVERLAPPING_PAIRS = 2
+    NUM_CONTAINED_PAIRS = 2
+    
+    # --- (NEW) Geometry Relationship Controls ---
+    LINE_CONTAINMENT_PROBABILITY = 0.3 # e.g., 30% chance for a line to be in a poly
+    POINT_CONTAINMENT_PROBABILITY = 0.3 # e.g., 30% chance for a point to be in a poly
     
     # --- Point Controls ---
-    NUM_POINTS = 10
+    NUM_POINTS = 50
     
     # --- Line Controls ---
-    NUM_LINES = 1
+    NUM_LINES = 10
     STRAIGHT_LINES_ONLY = False
     LINE_LENGTH_RANGE = (10, 30)
     LINE_SEGMENT_RANGE = (3, 8)
@@ -341,10 +399,13 @@ if __name__ == '__main__':
     MAX_ATTEMPTS_PER_PLACEMENT = 100 # Attempts to find a disjoint spot
 
     # --- Generation ---
+    # 1. Validate counts
     total_polygons_needed = (NUM_ALIGNED_PAIRS + NUM_OVERLAPPING_PAIRS + NUM_CONTAINED_PAIRS) * 2
+
     if total_polygons_needed > NUM_POLYGONS:
         raise ValueError(f"Not enough polygons ({NUM_POLYGONS}) to create all requested pairs ({total_polygons_needed} needed).")
 
+    # 2. Generate initial polygons
     print("Generating initial random polygons...")
     initial_polygons = generate_random_polygons(
         canvas_bounds=CANVAS_BOUNDS, num_polygons=NUM_POLYGONS,
@@ -353,54 +414,48 @@ if __name__ == '__main__':
         regular_shapes=CREATE_REGULAR_SHAPES
     )
     
-    # --- Polygon Relationship Processing ---
-    indices = list(range(NUM_POLYGONS))
-    random.shuffle(indices)
+    # 3. Polygon Relationship Processing
+    poly_indices = list(range(NUM_POLYGONS))
+    random.shuffle(poly_indices)
 
-    aligned_indices = indices[:NUM_ALIGNED_PAIRS*2]
-    off_1 = NUM_ALIGNED_PAIRS*2
-    overlapping_indices = indices[off_1 : off_1 + NUM_OVERLAPPING_PAIRS*2]
-    off_2 = off_1 + NUM_OVERLAPPING_PAIRS*2
-    contained_indices = indices[off_2 : off_2 + NUM_CONTAINED_PAIRS*2]
+    poly_idx_offset = 0
+    aligned_indices = poly_indices[poly_idx_offset : poly_idx_offset + NUM_ALIGNED_PAIRS*2]
+    poly_idx_offset += NUM_ALIGNED_PAIRS*2
+    overlapping_indices = poly_indices[poly_idx_offset : poly_idx_offset + NUM_OVERLAPPING_PAIRS*2]
+    poly_idx_offset += NUM_OVERLAPPING_PAIRS*2
+    poly_contained_indices = poly_indices[poly_idx_offset : poly_idx_offset + NUM_CONTAINED_PAIRS*2]
 
+    # Run relationship functions
     modified_polygons = create_aligned_edges(initial_polygons, aligned_indices)
     modified_polygons = create_overlapping_pairs(modified_polygons, overlapping_indices)
-    modified_polygons = create_contained_pairs(modified_polygons, contained_indices)
+    modified_polygons = create_contained_pairs(modified_polygons, poly_contained_indices)
+
     
-    # --- (NEW) Disjoint Check and Repositioning ---
+    # --- Disjoint Check and Repositioning (Polygons Only) ---
     print("Repositioning free polygons to ensure they are disjoint...")
-    involved_indices_set = set(aligned_indices) | set(overlapping_indices) | set(contained_indices)
-    free_indices = [i for i in range(NUM_POLYGONS) if i not in involved_indices_set]
     
-    involved_polygons_list = [modified_polygons[i] for i in involved_indices_set]
+    involved_poly_indices = set(aligned_indices) | set(overlapping_indices) | set(poly_contained_indices)
+    involved_polygons_list = [modified_polygons[i] for i in involved_poly_indices]
     involved_footprint = unary_union(involved_polygons_list)
     
-    placed_free_polygons_so_far = []
+    placed_free_polygons = [] # Footprint of free geoms placed so far
     
-    for free_idx in free_indices:
+    free_poly_indices = [i for i in range(NUM_POLYGONS) if i not in involved_poly_indices]
+    for free_idx in free_poly_indices:
         poly_to_check = modified_polygons[free_idx]
         attempt = 0
         is_placed = False
         
         while attempt < MAX_ATTEMPTS_PER_PLACEMENT:
-            # Check against the "no-go" zone of involved polygons
             overlaps_involved = poly_to_check.intersects(involved_footprint)
+            overlaps_other_free = any(poly_to_check.intersects(g) for g in placed_free_polygons)
             
-            # Check against other "free" polygons already placed
-            overlaps_other_free = False
-            for placed_poly in placed_free_polygons_so_far:
-                if poly_to_check.intersects(placed_poly):
-                    overlaps_other_free = True
-                    break
-            
-            # If it's in a clear spot, place it and move on
             if not overlaps_involved and not overlaps_other_free:
                 modified_polygons[free_idx] = poly_to_check
-                placed_free_polygons_so_far.append(poly_to_check)
+                placed_free_polygons.append(poly_to_check)
                 is_placed = True
                 break
             
-            # If it failed, generate a new polygon at a new random spot
             poly_to_check = generate_random_polygons(
                 canvas_bounds=CANVAS_BOUNDS, num_polygons=1,
                 min_vertices=VERTEX_RANGE[0], max_vertices=VERTEX_RANGE[1],
@@ -410,32 +465,84 @@ if __name__ == '__main__':
             attempt += 1
             
         if not is_placed:
-            print(f"Warning: Could not find a disjoint spot for polygon {free_idx} after {MAX_ATTEMPTS_PER_PLACEMENT} attempts. Placing it anyway.")
-            modified_polygons[free_idx] = poly_to_check # Add its last position
-            placed_free_polygons_so_far.append(poly_to_check)
+            print(f"Warning: Could not find disjoint spot for polygon {free_idx}. Placing anyway.")
+            modified_polygons[free_idx] = poly_to_check
+            placed_free_polygons.append(poly_to_check)
 
-    # --- Generate Points and Lines (as before) ---
-    print(f"Generating {NUM_POINTS} random points...")
-    new_points = generate_random_points(CANVAS_BOUNDS, NUM_POINTS)
-    print(f"Generating {NUM_LINES} random lines...")
-    straight_lines, curly_lines = generate_random_lines(
-        CANVAS_BOUNDS, NUM_LINES, STRAIGHT_LINES_ONLY, 
-        LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
-    )
+    # --- (NEW) Generate, Classify, and Place Lines and Points ---
     
-    # --- Sorting for Plotting ---
-    all_geometries = modified_polygons + new_points + straight_lines + curly_lines
-    all_geometries.sort(key=lambda g: g.area, reverse=True)
+    # All polygons are now in their final place. Create a new "no-go" zone
+    # that includes ALL polygons for free lines/points.
+    all_poly_footprint = unary_union(modified_polygons)
+    placed_free_geometries = [] # Keep track of free lines/points
+    
+    modified_lines = []
+    modified_points = []
+    num_contained_lines = 0
+    num_contained_points = 0
 
-    # --- Plotting ---
-    print(f"Successfully generated {len(all_geometries)} total geometries.")
-    title = (f"Polys: {len(modified_polygons)} ({NUM_ALIGNED_PAIRS} Aligned, {NUM_OVERLAPPING_PAIRS} Overlap, {NUM_CONTAINED_PAIRS} Contained) | "
-             f"Lines: {len(straight_lines) + len(curly_lines)} | Points: {len(new_points)}")
-    plot_geometries(all_geometries, CANVAS_BOUNDS, title_info=title)
+    print(f"Generating and placing {NUM_LINES} lines...")
+    for _ in range(NUM_LINES):
+        # 1. Decide if it will be a "contained" line
+        if random.random() < LINE_CONTAINMENT_PROBABILITY:
+            container_poly = random.choice(modified_polygons)
+            line_to_place = generate_one_line(
+                CANVAS_BOUNDS, STRAIGHT_LINES_ONLY, 
+                LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
+            )
+            final_line = move_line_into_poly(container_poly, line_to_place)
+            modified_lines.append(final_line)
+            num_contained_lines += 1
+        
+        # 2. Else, it's a "free" line that must be disjoint
+        else:
+            attempt = 0
+            is_placed = False
+            while attempt < MAX_ATTEMPTS_PER_PLACEMENT:
+                line_to_check = generate_one_line(
+                    CANVAS_BOUNDS, STRAIGHT_LINES_ONLY, 
+                    LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
+                )
+                overlaps_polygons = line_to_check.intersects(all_poly_footprint)
+                overlaps_other_free = any(line_to_check.intersects(g) for g in placed_free_geometries)
+                
+                if not overlaps_polygons and not overlaps_other_free:
+                    modified_lines.append(line_to_check)
+                    placed_free_geometries.append(line_to_check)
+                    is_placed = True
+                    break
+                attempt += 1
+            
+            if not is_placed:
+                 print(f"Warning: Could not find disjoint spot for a free line. Skipping.")
+    
+    print(f"Generating and placing {NUM_POINTS} points...")
+    for _ in range(NUM_POINTS):
+        # 1. Decide if it will be a "contained" point
+        if random.random() < POINT_CONTAINMENT_PROBABILITY:
+            container_poly = random.choice(modified_polygons)
+            point_to_place = generate_one_point(CANVAS_BOUNDS)
+            final_point = move_point_into_poly(container_poly, point_to_place)
+            modified_points.append(final_point)
+            num_contained_points += 1
+        
+        # 2. Else, it's a "free" point that must be disjoint
+        else:
+            attempt = 0
+            is_placed = False
+            while attempt < MAX_ATTEMPTS_PER_PLACEMENT:
+                point_to_check = generate_one_point(CANVAS_BOUNDS)
+                
+                overlaps_polygons = point_to_check.intersects(all_poly_footprint)
+                overlaps_other_free = any(point_to_check.intersects(g) for g in placed_free_geometries)
 
-    # # --- Database Saving ---
-    # if SAVE_TO_DB:
-    #     save_geometries_to_postgis(
-    #         modified_polygons, new_points, straight_lines, curly_lines, 
-    #         CREATE_REGULAR_SHAPES, DB_CONFIG
-    #     )
+                if not overlaps_polygons and not overlaps_other_free:
+                    modified_points.append(point_to_check)
+                    placed_free_geometries.append(point_to_check)
+                    is_placed = True
+                    break
+                attempt += 1
+            
+            if not is_placed:
+                print(f"Warning: Could not find disjoint spot for a free point. Skipping.")
+
