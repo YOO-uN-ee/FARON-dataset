@@ -736,7 +736,7 @@ if __name__ == '__main__':
         'host': 'localhost',
         'database': 'spatial_db',
         'user': 'postgres',
-        'password': 'jiYOON7162@'
+        'password': 'password'
     }
 
     # --- Generation ---
