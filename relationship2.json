@@ -1,8 +1,8 @@
 {
     "relationships": [
         [
-            "POLYGON_1",
-            "POLYGON_3",
+            ["POLYGON", 1],
+            ["POLYGON", 3],
             "touches"
         ],
         [
