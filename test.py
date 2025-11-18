@@ -348,8 +348,8 @@ def save_geometries_to_postgis(
     conn = None
     try:
         print("\nConnecting to the PostGIS database...")
-        # conn = psycopg2.connect(**db_config)
-        # cur = conn.cursor()
+        conn = psycopg2.connect(**db_config)
+        cur = conn.cursor()
         create_table_sql = """
         CREATE EXTENSION postgis;
         CREATE TABLE IF NOT EXISTS generated_geometries (
@@ -361,53 +361,53 @@ def save_geometries_to_postgis(
             area DOUBLE PRECISION,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );"""
-        print(create_table_sql)
-        # cur.execute(create_table_sql)
-        # print("Clearing old data from the table...")
-        # cur.execute("DELETE FROM generated_geometries;")
+        # print(create_table_sql)
+        cur.execute(create_table_sql)
+        print("Clearing old data from the table...")
+        cur.execute("DELETE FROM generated_geometries;")
         
         # print(f"Inserting {len(polygons)} polygons...")
         polygon_style = "regular" if is_regular_polygon else "irregular"
         for poly in polygons:
-            # cur.execute(
-            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText(%s, 0), 'Polygon', %s, %s, %s);""",
-            #     (poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area)
-            # )
-
-            print(
+            cur.execute(
                 """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText('%s', 0), 'Polygon', '%s', %s, %s);""" %
+                   VALUES (ST_GeomFromText(%s, 0), 'Polygon', %s, %s, %s);""",
                 (poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area)
             )
+
+            # print(
+            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
+            #        VALUES (ST_GeomFromText('%s', 0), 'Polygon', '%s', %s, %s);""" %
+            #     (poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area)
+            # )
         
         # print(f"Inserting {len(points)} points...")
         for point in points:
-            # cur.execute(
-            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText(%s, 0), 'Point', 'point', 1, 0);""",
-            #     (point.wkt,)
-            # )
-
-            print(
+            cur.execute(
                 """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText('%s', 0), 'Point', 'point', 1, 0);""" %
+                   VALUES (ST_GeomFromText(%s, 0), 'Point', 'point', 1, 0);""",
                 (point.wkt,)
             )
 
-        # print(f"Inserting {len(straight_lines)} straight lines...")
-        for line in straight_lines:
-            # cur.execute(
+            # print(
             #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText(%s, 0), 'LineString', 'straight', %s, 0);""",
-            #     (line.wkt, len(line.coords))
+            #        VALUES (ST_GeomFromText('%s', 0), 'Point', 'point', 1, 0);""" %
+            #     (point.wkt,)
             # )
 
-            print(
+        # print(f"Inserting {len(straight_lines)} straight lines...")
+        for line in straight_lines:
+            cur.execute(
                 """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText('%s', 0), 'LineString', 'line', %s, 0);""" %
+                   VALUES (ST_GeomFromText(%s, 0), 'LineString', 'straight', %s, 0);""",
                 (line.wkt, len(line.coords))
             )
+
+            # print(
+            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
+            #        VALUES (ST_GeomFromText('%s', 0), 'LineString', 'line', %s, 0);""" %
+            #     (line.wkt, len(line.coords))
+            # )
         
         # print(f"Inserting {len(curly_lines)} curly lines...")
         # for line in curly_lines:
@@ -423,16 +423,16 @@ def save_geometries_to_postgis(
         #         (line.wkt, len(line.coords))
         #     )
 
-        # conn.commit()
-        # print("Successfully saved all geometries to the database.")
+        conn.commit()
+        print("Successfully saved all geometries to the database.")
     except (Exception, psycopg2.DatabaseError) as error:
-        # print(f"Database error: {error}")
-        pass
+        print(f"Database error: {error}")
+        # pass
     finally:
-        pass
-        # if conn is not None:
-        #     conn.close()
-        #     print("Database connection closed.")
+        # pass
+        if conn is not None:
+            conn.close()
+            print("Database connection closed.")
 
 if __name__ == '__main__':
     # --- Configuration ---
