@@ -1,22 +1,27 @@
 import torch
-from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
+from transformers import AutoProcessor, LlavaOnevisionForConditionalGeneration
 from PIL import Image
 import topology_generator as topo # Imports the file created above
 
 # --- 1. Model Setup ---
 print("Loading LLaVA Model...")
-# Using LLaVA-NeXT (v1.6) or 1.5. Adjust model_id as needed for your VRAM.
-# standard 1.5: "llava-hf/llava-1.5-7b-hf" 
-# mistral-based: "llava-hf/llava-v1.6-mistral-7b-hf"
-model_id = "llava-hf/llava-1.5-7b-hf" 
+model_id = "llava-hf/llava-onevision-qwen2-7b-si-hf" 
 
-processor = LlavaNextProcessor.from_pretrained(model_id)
-model = LlavaNextForConditionalGeneration.from_pretrained(
-    model_id, 
-    torch_dtype=torch.float16, 
+processor = AutoProcessor.from_pretrained(model_id) 
+model = LlavaOnevisionForConditionalGeneration.from_pretrained(
+    model_id,
+    dtype=torch.float16,
     low_cpu_mem_usage=True,
-    device_map="auto" # Requires CUDA
+    device_map='auto'
 )
+
+# processor = LlavaNextProcessor.from_pretrained(model_id)
+# model = LlavaNextForConditionalGeneration.from_pretrained(
+#     model_id, 
+#     torch_dtype=torch.float16, 
+#     low_cpu_mem_usage=True,
+#     device_map="auto" # Requires CUDA
+# )
 print("Model Loaded.")
 
 # --- 2. Prompt Templates ---
@@ -24,9 +29,22 @@ print("Model Loaded.")
 def run_inference(image, text_prompt):
     """Generic inference helper for LLaVA."""
     # LLaVA 1.5 prompt format: "USER: <image>\n<prompt>\nASSISTANT:"
-    prompt = f"USER: <image>\n{text_prompt}\nASSISTANT:"
+    # prompt = f"USER: <image>\n{text_prompt}\nASSISTANT:"
+
+    conversation = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image",},
+                {"type": "text", "text": text_prompt},
+            ],
+        },
+    ]
+
+    inputs = processor.apply_chat_template(conversation, images=[image], add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt")
+    inputs = inputs.to(model.device, torch.float16)
     
-    inputs = processor(text=prompt, images=image, return_tensors="pt").to(model.device)
+    # inputs = processor(text=prompt, images=image, return_tensors="pt").to(model.device)
     
     # Generate
     output = model.generate(**inputs, max_new_tokens=100)
@@ -34,7 +52,7 @@ def run_inference(image, text_prompt):
     
     # Extract only the assistant's reply
     try:
-        return response.split("ASSISTANT:")[1].strip()
+        return response.split("assistant")[1].strip()
     except:
         return response
 
