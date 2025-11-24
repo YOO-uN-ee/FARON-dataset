@@ -5,7 +5,9 @@ from shapely import affinity
 from shapely.ops import unary_union
 import matplotlib.pyplot as plt
 import psycopg2
-
+import json
+import matplotlib.patheffects as PathEffects
+from adjustText import adjust_text
 
 def generate_random_polygons(
     canvas_bounds, 
@@ -125,35 +127,16 @@ def generate_one_line(canvas_bounds, straight_only, length_range, segment_range)
             # Fallback to a simple line if random walk fails
             return generate_one_line(canvas_bounds, True, length_range, segment_range)
 
-def create_touching_pairs(polygons, num_pairs):
+def create_touching_pairs(polygons, indices_to_use, relationships_list):
     """
-    Adjusts polygons so a specified number of pairs share a border.
-
-    Args:
-        polygons (list): The list of generated Shapely Polygons.
-        num_pairs (int): The number of pairs to make touch.
-
-    Returns:
-        list: The modified list of polygons.
+    Adjusts specified polygon pairs to share a single boundary point.
     """
-    if num_pairs == 0:
-        return polygons
-        
-    num_polygons = len(polygons)
-    if num_pairs * 2 > num_polygons:
-        print(f"Warning: Cannot create {num_pairs} pairs from {num_polygons} polygons. Reducing pairs.")
-        num_pairs = num_polygons // 2
-
-    # Create a list of indices and shuffle it to create random pairs
-    indices = list(range(num_polygons))
-    random.shuffle(indices)
-
     modified_polygons = polygons[:] # Work on a copy
 
-    for i in range(num_pairs):
+    for i in range(0, len(indices_to_use), 2):
         # Get indices for the stationary polygon (A) and the mobile one (B)
-        idx_a = indices[i*2]
-        idx_b = indices[i*2 + 1]
+        idx_a = indices_to_use[i]
+        idx_b = indices_to_use[i+1]
 
         poly_a = modified_polygons[idx_a]
         poly_b = modified_polygons[idx_b]
@@ -172,11 +155,33 @@ def create_touching_pairs(polygons, num_pairs):
 
         # Move polygon B and update it in the list
         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
-        modified_polygons[idx_b] = moved_poly_b
+        
+        # Simple check to reduce severe overlap, though 'touches' can still mean overlap
+        if not poly_a.overlaps(moved_poly_b):
+            modified_polygons[idx_b] = moved_poly_b
+        else:
+            # If it overlaps, we'll just accept it for this demo
+            modified_polygons[idx_b] = moved_poly_b
+            
+        # --- ADDED RELATIONSHIP ---
+        relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "touches"])
+        # ---
     
     return modified_polygons
 
-def create_aligned_edges(polygons, indices_to_use):
+def get_random_point_in_polygon(poly):
+    """
+    Returns a random Point that is guaranteed to be inside the given polygon.
+    Uses rejection sampling.
+    """
+    min_x, min_y, max_x, max_y = poly.bounds
+    while True:
+        p = Point(random.uniform(min_x, max_x), random.uniform(min_y, max_y))
+        if poly.contains(p):
+            return p
+
+# vvv MODIFIED FUNCTION vvv
+def create_aligned_edges(polygons, indices_to_use, relationships_list):
     """Adjusts specified polygon pairs to share a boundary line."""
     modified_polygons = polygons[:]
     MAX_ATTEMPTS_PER_PAIR = 20
@@ -217,6 +222,9 @@ def create_aligned_edges(polygons, indices_to_use):
             if not poly_a.overlaps(final_poly_b):
                 modified_polygons[idx_b] = final_poly_b
                 pair_aligned = True
+                # --- MODIFIED RELATIONSHIP ---
+                relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "aligned"])
+                # ---
                 break
         
         if not pair_aligned:
@@ -224,7 +232,7 @@ def create_aligned_edges(polygons, indices_to_use):
 
     return modified_polygons
 
-def create_overlapping_pairs(polygons, indices_to_use):
+def create_overlapping_pairs(polygons, indices_to_use, relationships_list):
     """Adjusts specified polygon pairs to partially overlap."""
     modified_polygons = polygons[:]
     for i in range(0, len(indices_to_use), 2):
@@ -244,9 +252,13 @@ def create_overlapping_pairs(polygons, indices_to_use):
         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
         modified_polygons[idx_b] = moved_poly_b
         
+        # --- ADDED RELATIONSHIP ---
+        relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "overlaps"])
+        # ---
+        
     return modified_polygons
 
-def create_contained_pairs(polygons, indices_to_use):
+def create_contained_pairs(polygons, indices_to_use, relationships_list):
     """Adjusts specified polygon pairs so one is contained within another."""
     modified_polygons = polygons[:]
     for i in range(0, len(indices_to_use), 2):
@@ -272,7 +284,161 @@ def create_contained_pairs(polygons, indices_to_use):
         final_poly_b = affinity.translate(scaled_poly_b, xoff=x_off, yoff=y_off)
         modified_polygons[idx_b] = final_poly_b
         
+        # --- ADDED RELATIONSHIP ---
+        # idx_b is the smaller polygon, idx_a is the container
+        relationships_list.append([["POLYGON", idx_b], ["POLYGON", idx_a], "within"])
+        # ---
+        
     return modified_polygons
+
+# def create_touching_pairs(polygons, num_pairs):
+#     """
+#     Adjusts polygons so a specified number of pairs share a border.
+
+#     Args:
+#         polygons (list): The list of generated Shapely Polygons.
+#         num_pairs (int): The number of pairs to make touch.
+
+#     Returns:
+#         list: The modified list of polygons.
+#     """
+#     if num_pairs == 0:
+#         return polygons
+        
+#     num_polygons = len(polygons)
+#     if num_pairs * 2 > num_polygons:
+#         print(f"Warning: Cannot create {num_pairs} pairs from {num_polygons} polygons. Reducing pairs.")
+#         num_pairs = num_polygons // 2
+
+#     # Create a list of indices and shuffle it to create random pairs
+#     indices = list(range(num_polygons))
+#     random.shuffle(indices)
+
+#     modified_polygons = polygons[:] # Work on a copy
+
+#     for i in range(num_pairs):
+#         # Get indices for the stationary polygon (A) and the mobile one (B)
+#         idx_a = indices[i*2]
+#         idx_b = indices[i*2 + 1]
+
+#         poly_a = modified_polygons[idx_a]
+#         poly_b = modified_polygons[idx_b]
+
+#         # Pick a random point on the boundary of polygon A
+#         dist_a = random.uniform(0, poly_a.exterior.length)
+#         touch_point_a = poly_a.exterior.interpolate(dist_a)
+
+#         # Pick a random point on the boundary of polygon B
+#         dist_b = random.uniform(0, poly_b.exterior.length)
+#         touch_point_b = poly_b.exterior.interpolate(dist_b)
+
+#         # Calculate the translation vector to move touch_point_b to touch_point_a
+#         x_off = touch_point_a.x - touch_point_b.x
+#         y_off = touch_point_a.y - touch_point_b.y
+
+#         # Move polygon B and update it in the list
+#         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
+#         modified_polygons[idx_b] = moved_poly_b
+    
+#     return modified_polygons
+
+# def create_aligned_edges(polygons, indices_to_use):
+#     """Adjusts specified polygon pairs to share a boundary line."""
+#     modified_polygons = polygons[:]
+#     MAX_ATTEMPTS_PER_PAIR = 20
+
+#     for i in range(0, len(indices_to_use), 2):
+#         idx_a = indices_to_use[i]
+#         idx_b = indices_to_use[i+1]
+        
+#         pair_aligned = False
+#         for _ in range(MAX_ATTEMPTS_PER_PAIR):
+#             poly_a = modified_polygons[idx_a]
+#             poly_b = modified_polygons[idx_b]
+
+#             coords_a = list(poly_a.exterior.coords)
+#             edge_idx_a = random.randrange(len(coords_a) - 1)
+#             p_a1, p_a2 = Point(coords_a[edge_idx_a]), Point(coords_a[edge_idx_a + 1])
+            
+#             coords_b = list(poly_b.exterior.coords)
+#             edge_idx_b = random.randrange(len(coords_b) - 1)
+#             p_b1, p_b2 = Point(coords_b[edge_idx_b]), Point(coords_b[edge_idx_b + 1])
+
+#             angle_a = math.atan2(p_a2.y - p_a1.y, p_a2.x - p_a1.x)
+#             angle_b = math.atan2(p_b2.y - p_b1.y, p_b2.x - p_b1.x)
+            
+#             rotation_angle_rad = angle_a - angle_b + math.pi
+#             rotated_poly_b = affinity.rotate(poly_b, math.degrees(rotation_angle_rad), origin='center')
+            
+#             rotated_coords_b = list(rotated_poly_b.exterior.coords)
+#             p_b1_rot, p_b2_rot = Point(rotated_coords_b[edge_idx_b]), Point(rotated_coords_b[edge_idx_b + 1])
+#             mid_b_rot = Point((p_b1_rot.x + p_b2_rot.x) / 2, (p_b1_rot.y + p_b2_rot.y) / 2)
+            
+#             mid_a = Point((p_a1.x + p_a2.x) / 2, (p_a1.y + p_a2.y) / 2)
+            
+#             x_off = mid_a.x - mid_b_rot.x
+#             y_off = mid_a.y - mid_b_rot.y
+#             final_poly_b = affinity.translate(rotated_poly_b, xoff=x_off, yoff=y_off)
+            
+#             if not poly_a.overlaps(final_poly_b):
+#                 modified_polygons[idx_b] = final_poly_b
+#                 pair_aligned = True
+#                 break
+        
+#         if not pair_aligned:
+#             print(f"Warning: Could not align pair ({idx_a}, {idx_b}) without overlap.")
+
+#     return modified_polygons
+
+# def create_overlapping_pairs(polygons, indices_to_use):
+#     """Adjusts specified polygon pairs to partially overlap."""
+#     modified_polygons = polygons[:]
+#     for i in range(0, len(indices_to_use), 2):
+#         idx_a = indices_to_use[i]
+#         idx_b = indices_to_use[i+1]
+
+#         poly_a = modified_polygons[idx_a]
+#         poly_b = modified_polygons[idx_b]
+
+#         target_point = poly_a.centroid
+#         dist_b = random.uniform(0, poly_b.exterior.length)
+#         source_point = poly_b.exterior.interpolate(dist_b)
+        
+#         x_off = target_point.x - source_point.x
+#         y_off = target_point.y - source_point.y
+        
+#         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
+#         modified_polygons[idx_b] = moved_poly_b
+        
+#     return modified_polygons
+
+# def create_contained_pairs(polygons, indices_to_use):
+#     """Adjusts specified polygon pairs so one is contained within another."""
+#     modified_polygons = polygons[:]
+#     for i in range(0, len(indices_to_use), 2):
+#         idx_1 = indices_to_use[i]
+#         idx_2 = indices_to_use[i+1]
+        
+#         if modified_polygons[idx_1].area > modified_polygons[idx_2].area:
+#             idx_a, idx_b = idx_1, idx_2 # A is container, B is contained
+#         else:
+#             idx_a, idx_b = idx_2, idx_1
+            
+#         poly_a = modified_polygons[idx_a]
+#         poly_b = modified_polygons[idx_b]
+        
+#         scale_factor = min(0.5, math.sqrt(poly_a.area / poly_b.area) * 0.5)
+#         scaled_poly_b = affinity.scale(poly_b, xfact=scale_factor, yfact=scale_factor, origin='center')
+
+#         target_point = poly_a.representative_point()
+#         source_centroid = scaled_poly_b.centroid
+#         x_off = target_point.x - source_centroid.x
+#         y_off = target_point.y - source_centroid.y
+        
+#         final_poly_b = affinity.translate(scaled_poly_b, xoff=x_off, yoff=y_off)
+#         modified_polygons[idx_b] = final_poly_b
+        
+#     return modified_polygons
 
 def move_line_into_poly(container_poly, line_to_move):
     """Moves and scales a single line to be contained within a polygon."""
@@ -288,57 +454,137 @@ def move_line_into_poly(container_poly, line_to_move):
     scale_factor = min((poly_width / line_width) * 0.5, (poly_height / line_height) * 0.5)
     scaled_line = affinity.scale(line_to_move, xfact=scale_factor, yfact=scale_factor, origin='center')
 
-    # Move to representative_point, which is guaranteed to be inside the polygon
-    target_point = container_poly.representative_point()
+    # NEW LOGIC:
+    target_point = get_random_point_in_polygon(container_poly)
+    
     source_centroid = scaled_line.centroid
     x_off = target_point.x - source_centroid.x
     y_off = target_point.y - source_centroid.y
     
     final_line = affinity.translate(scaled_line, xoff=x_off, yoff=y_off)
+    
+    # Double check that the rotation/move kept it inside. 
+    # If the random point was near the edge, the line might stick out.
+    if not container_poly.contains(final_line):
+        # Fallback: Try representative point if random placement failed to contain the whole line
+        target_point = container_poly.representative_point()
+        x_off = target_point.x - source_centroid.x
+        y_off = target_point.y - source_centroid.y
+        final_line = affinity.translate(scaled_line, xoff=x_off, yoff=y_off)
+
     return final_line
 
 def move_point_into_poly(container_poly, point_to_move):
-    """Moves a single point to be contained within a polygon."""
-    # Move to representative_point
-    target_point = container_poly.representative_point()
+    """Moves a single point to a RANDOM location contained within a polygon."""
+        
+    # NEW LOGIC:
+    target_point = get_random_point_in_polygon(container_poly)
+    
+    # Calculate offset to move the point from its current spot to the new random spot
     x_off = target_point.x - point_to_move.x
     y_off = target_point.y - point_to_move.y
     
     final_point = affinity.translate(point_to_move, xoff=x_off, yoff=y_off)
     return final_point
 
-def plot_geometries(all_geometries, canvas_bounds, title_info="", save_path="./polygons.png"):
+def plot_geometries(polygons, lines, points, canvas_bounds, title_info="", save_path="./polygons.png"):
     """
-    Visualizes the generated polygons on a 2D plot.
-
-    Args:
-        polygons (list): A list of Shapely Polygon objects.
-        canvas_bounds (tuple): The boundaries of the canvas for plotting.
+    Visualizes the generated geometries. 
+    Calculates 'safe' label positions by subtracting inner polygons from outer ones
+    to ensure labels don't stack on top of each other.
     """
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(12, 12))
     min_x, min_y, max_x, max_y = canvas_bounds
     ax.set_xlim(min_x, max_x); ax.set_ylim(min_y, max_y)
     ax.set_aspect('equal', adjustable='box')
     
-    for geom in all_geometries:
-        if geom.geom_type == 'Polygon':
-            color = (random.random(), random.random(), random.random())
-            x, y = geom.exterior.xy
-            ax.fill(x, y, color=color, alpha=0.7, edgecolor='black')
-        
-        elif geom.geom_type == 'LineString':
-            x, y = geom.xy
-            if len(x) == 2: # Straight line
-                ax.plot(x, y, color='blue', linewidth=1, alpha=0.8)
-            else: # Curly line
-                ax.plot(x, y, color='purple', linewidth=1, alpha=0.8, linestyle='--')
+    texts_to_adjust = []
+    points_to_avoid = []
 
-        elif geom.geom_type == 'Point':
-            ax.scatter(geom.x, geom.y, c='black', s=10, zorder=5)
+    # 1. Plot Polygons and calculate SMART label positions
+    for i, poly in enumerate(polygons):
+        color = (random.random(), random.random(), random.random())
+        x, y = poly.exterior.xy
+        ax.fill(x, y, color=color, alpha=0.7, edgecolor='black', linewidth=0.5)
+        
+        # --- SMART LABEL LOGIC START ---
+        # Start with the full polygon area
+        label_region = poly
+        
+        # Check all other polygons to see if they are inside the current one
+        # If they are, subtract them from the labeling region
+        for j, other_poly in enumerate(polygons):
+            if i == j: continue # Don't check against self
+            
+            # If the current polygon (poly) contains the other polygon (other_poly),
+            # we subtract the other_poly area so the label doesn't end up there.
+            if poly.contains(other_poly):
+                try:
+                    label_region = label_region.difference(other_poly)
+                except Exception:
+                    # Fallback if topological error occurs
+                    pass
+        
+        # Get a point that is guaranteed to be in the "Green but not Brown" area
+        # If the difference wiped out the polygon (unlikely), fallback to original
+        if label_region.is_empty:
+             c = poly.representative_point()
+        else:
+             c = label_region.representative_point()
+        # --- SMART LABEL LOGIC END ---
+
+        # Create annotation
+        ann = ax.annotate(f"P{i}", 
+                          xy=(c.x, c.y), 
+                          xytext=(c.x, c.y),
+                          fontsize=10, ha='center', va='center', color='white',
+                          path_effects=[PathEffects.withStroke(linewidth=2, foreground="black")])
+        texts_to_adjust.append(ann)
+
+    # 2. Plot Lines
+    for i, line in enumerate(lines):
+        x, y = line.xy
+        if len(x) == 2: 
+            ax.plot(x, y, color='blue', linewidth=2, alpha=0.9)
+        else: 
+            ax.plot(x, y, color='purple', linewidth=2, alpha=0.9, linestyle='--')
+        
+        mid_point = line.interpolate(0.5, normalized=True)
+        
+        ann = ax.annotate(f"L{i}", 
+                          xy=(mid_point.x, mid_point.y), 
+                          xytext=(mid_point.x, mid_point.y),
+                          fontsize=9, color='blue', ha='center', va='center')
+        texts_to_adjust.append(ann)
+
+    # 3. Plot Points
+    for i, point in enumerate(points):
+        scatter_pt = ax.scatter(point.x, point.y, c='black', s=30, zorder=5)
+        points_to_avoid.append(scatter_pt)
+
+        ann = ax.annotate(f"Pt{i}", 
+                          xy=(point.x, point.y), 
+                          xytext=(point.x, point.y),
+                          fontsize=9, color='black')
+        texts_to_adjust.append(ann)
     
-    ax.set_xticks([]) # Hides x-axis tick marks and labels
-    ax.set_yticks([]) # Hides y-axis tick marks and labels
+    ax.set_xticks([]) 
+    ax.set_yticks([]) 
+    ax.set_title(title_info)
+
+    print("Adjusting label positions to avoid overlaps...")
+    
+    adjust_text(texts_to_adjust, 
+                ax=ax, 
+                add_objects=points_to_avoid,
+                arrowprops=dict(arrowstyle='-', color='gray', lw=0.5, shrinkA=5, shrinkB=5),
+                force_text=(0.1, 0.5), 
+                force_points=(0.2, 0.5),
+                expand_points=(1.2, 1.2)
+                )
+
     plt.savefig(save_path)
+    print(f"Plot saved to {save_path}")
 
 def save_geometries_to_postgis(
     polygons, points, straight_lines,
@@ -350,8 +596,12 @@ def save_geometries_to_postgis(
         print("\nConnecting to the PostGIS database...")
         conn = psycopg2.connect(**db_config)
         cur = conn.cursor()
+        # try:
+        #     cur.execute("CREATE EXTENSION postgis;")
+        # except:
+        #     pass
+
         create_table_sql = """
-        CREATE EXTENSION postgis;
         CREATE TABLE IF NOT EXISTS generated_geometries (
             id SERIAL PRIMARY KEY, 
             geom GEOMETRY(GEOMETRY, 0),
@@ -438,7 +688,13 @@ if __name__ == '__main__':
     # --- Configuration ---
     CANVAS_BOUNDS = (0, 0, 100, 100)
     SAVE_TO_DB = True
-    DB_CONFIG = ""
+    DB_CONFIG = {
+        "dbname": "postgres",
+        "user": "postgres",
+        "password": "jiYOON7162@",
+        "host": "localhost", # e.g., "localhost" or an IP address
+        "port": "5432" # Default PostgreSQL port
+    }
 
     # --- Polygon Stuff ---
     NUM_POLYGONS = 3
@@ -465,6 +721,8 @@ if __name__ == '__main__':
 
     # --- Disjoint Placement Controls ---
     MAX_ATTEMPTS_PER_PLACEMENT = 100 # Attempts to find a disjoint spot
+
+    all_relationships = []
 
 
     # --- Generation ---
@@ -497,10 +755,10 @@ if __name__ == '__main__':
     # off_3 = off_2 + NUM_TOUCHING_PAIRS*2
     # touched_indices = indices[off_3 : off_3 + NUM_TOUCHING_PAIRS*2]
 
-    modified_polygons = create_aligned_edges(initial_polygons, aligned_indices)
-    modified_polygons = create_overlapping_pairs(modified_polygons, overlapping_indices)
-    modified_polygons = create_contained_pairs(modified_polygons, contained_indices)
-    # final_polygons = create_touching_pairs(modified_polygons, touched_indices)    # TODO: Need to fix touching function
+    modified_polygons = create_aligned_edges(initial_polygons, aligned_indices, all_relationships)
+    modified_polygons = create_overlapping_pairs(modified_polygons, overlapping_indices, all_relationships)
+    modified_polygons = create_contained_pairs(modified_polygons, contained_indices, all_relationships)
+    # modifi_polygons = create_touching_pairs(modified_polygons, touched_indices)    # TODO: Need to fix touching function
 
     # --- Repositioning to satisfy disjoint condition ---
     print("Repositioning free polygons to ensure they are disjoint...")
@@ -569,13 +827,19 @@ if __name__ == '__main__':
     print(f"Generating and placing {NUM_LINES} lines...")
     for _ in range(NUM_LINES):
         if random.random() < LINE_CONTAINMENT_PROBABILITY:
-            container_poly = random.choice(modified_polygons)
+            container_idx = random.choice(range(len(modified_polygons)))
+            container_poly = modified_polygons[container_idx]
+            # container_poly = random.choice(modified_polygons)
             line_to_place = generate_one_line(
                 CANVAS_BOUNDS, STRAIGHT_LINES_ONLY, 
                 LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
             )
             final_line = move_line_into_poly(container_poly, line_to_place)
             modified_lines.append(final_line)
+
+            line_idx = len(modified_lines) - 1
+            all_relationships.append([["LINE", line_idx], ["POLYGON", container_idx], "within"])
+
             num_contained_lines += 1
         
         else:
@@ -602,10 +866,16 @@ if __name__ == '__main__':
     print(f"Generating and placing {NUM_POINTS} points...")
     for _ in range(NUM_POINTS):
         if random.random() < POINT_CONTAINMENT_PROBABILITY:
-            container_poly = random.choice(modified_polygons)
+            container_idx = random.choice(range(len(modified_polygons)))
+            container_poly = modified_polygons[container_idx]
+            # container_poly = random.choice(modified_polygons)
             point_to_place = generate_one_point(CANVAS_BOUNDS)
             final_point = move_point_into_poly(container_poly, point_to_place)
             modified_points.append(final_point)
+
+            point_idx = len(modified_points) - 1
+            all_relationships.append([["POINT", point_idx], ["POLYGON", container_idx], "within"])
+
             num_contained_points += 1
         
         else:
@@ -629,13 +899,13 @@ if __name__ == '__main__':
 
     # --- Sorting for Plotting ---
     all_geometries = modified_polygons + modified_lines + modified_points
-    modified_polygons.sort(key=lambda p: p.area, reverse=True)
+    # modified_polygons.sort(key=lambda p: p.area, reverse=True)
     
     # --- Plotting ---
     print(f"Generated {len(all_geometries)} total geometries.")
     title = (f"Polys: {len(modified_polygons)} ({NUM_ALIGNED_PAIRS} Aligned, {NUM_OVERLAPPING_PAIRS} Overlap, {NUM_CONTAINED_PAIRS} Contained | "
              f"Lines: {len(modified_lines)} | Points: {len(modified_points)}")
-    plot_geometries(all_geometries, CANVAS_BOUNDS, title_info=title)
+    plot_geometries(modified_polygons, modified_lines, modified_points, CANVAS_BOUNDS, title_info=title)
 # 
     # --- Database Saving ---
     if SAVE_TO_DB:
@@ -643,3 +913,13 @@ if __name__ == '__main__':
             modified_polygons, modified_points, modified_lines, 
             CREATE_REGULAR_SHAPES, DB_CONFIG
         )
+
+    relationship_data = {"relationships": all_relationships}
+    # print("\n--- Generated Relationships ---")
+    file_path = "relationship.json"
+    with open(file_path, "w") as f:
+        json.dump(relationship_data, f, indent=4)
+
+    print('Relationship saved to relationship.json')
+    # print(json.dumps(relationship_data, indent=4))
+    # print("---------------------------------")

@@ -236,6 +236,7 @@
 
 
 import random
+import psycopg2
 import json
 from collections import defaultdict
 
@@ -327,9 +328,12 @@ def generate_spatial_question_from_data_with_postgis(
         ]
         
         # Build SQL
+            # -- Step 1: Find all {type_b}s that {rel_2_name} {entity_c_str}
+        # -- Step 2: Find all {type_a}s that {rel_1_name} an entity from Step 1
+
+
         sql = f"""
 WITH IntermediateSet AS (
-    -- Step 1: Find all {type_b}s that {rel_2_name} {entity_c_str}
     SELECT T1.{template_data['geom_col']}
     FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
     WHERE
@@ -338,7 +342,6 @@ WITH IntermediateSet AS (
         AND T2.{template_data['geom_type_col']} = '{type_c}'
         AND {rel_2_sql.format(A='T1.' + template_data['geom_col'], B='T2.' + template_data['geom_col'])}
 )
--- Step 2: Find all {type_a}s that {rel_1_name} an entity from Step 1
 SELECT DISTINCT T_Final.{template_data['name_col']}
 FROM {template_data['table_name']} AS T_Final, IntermediateSet
 WHERE
@@ -393,9 +396,11 @@ WHERE
             "between the sets from Step 1 and Step 2."
         ]
         
+#         -- Step 1: Find {type_a}s that {rel_1_name} {entity_b_str}
+# -- Step 2: Find {type_a}s that {rel_2_name} {entity_c_str}
+
         # Build SQL
         sql = f"""
--- Step 1: Find {type_a}s that {rel_1_name} {entity_b_str}
 SELECT T1.{template_data['name_col']}
 FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
 WHERE
@@ -406,7 +411,6 @@ WHERE
 
 INTERSECT
 
--- Step 2: Find {type_a}s that {rel_2_name} {entity_c_str}
 SELECT T1.{template_data['name_col']}
 FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
 WHERE
@@ -460,7 +464,7 @@ try:
         sample_data = json.load(file)
 except FileNotFoundError:
     print("Error: relationship.json not found. Using dummy data.")
-    # Dummy data matching the new format
+    # Fallback dummy data
     sample_data = {
         "relationships": [
             [["POLYGON", 1], ["POLYGON", 5], "within"],
@@ -491,7 +495,9 @@ generated_data = generate_spatial_question_from_data_with_postgis(
     geom_type_col="geom_type" 
 )
 
-# Print the results
+with open('./question_detail.json', 'w') as f:
+    json.dump(generated_data, f, indent=4)
+
 if "error" in generated_data:
     print(generated_data["error"])
 else:
@@ -504,8 +510,54 @@ else:
         print(f"* {step}")
     print("\n" + "---" + "\n")
 
-    print("PostGIS/PostgreSQL Query\n")
-    print("```sql")
-    print("EXPLAIN ANALYZE")
-    print(generated_data['sql'])
-    print("```")
+    DB_CONFIG = {
+        "dbname": "postgres",
+        "user": "postgres",
+        "password": "jiYOON7162@",
+        "host": "localhost",
+        "port": "5432"
+    }
+
+    QUERY_TO_ANALYZE = generated_data['sql']
+    OUTPUT_FILENAME = "query_plan.json"
+
+    sql_explain_query = f"EXPLAIN (ANALYZE, FORMAT JSON) {QUERY_TO_ANALYZE}"
+
+    plan_json = None
+
+    try:
+        print(f"Connecting to database '{DB_CONFIG['dbname']}'...")
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            print("Connection successful.")
+            
+            with conn.cursor() as cur:
+                
+                print(f"Executing: {sql_explain_query}")
+                cur.execute(sql_explain_query)
+                
+                plan_result = cur.fetchone()
+                
+                if plan_result:
+                    plan_json = plan_result[0]
+                else:
+                    print("Error: Could not retrieve an explain plan.")
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"Database error: {error}")
+
+    # --- Save to File ---
+    if plan_json:
+        try:
+            print(f"Saving query plan to '{OUTPUT_FILENAME}'...")
+            with open(OUTPUT_FILENAME, 'w') as f:
+                json.dump(plan_json, f, indent=4)
+            
+            print(f"Successfully saved query plan to '{OUTPUT_FILENAME}'.")
+        except (Exception, IOError) as error:
+            print(f"Error writing to file: {error}")
+
+    # print("PostGIS/PostgreSQL Query\n")
+    # print("```sql")
+    # print("EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)")
+    # print(generated_data['sql'])
+    # print("```")

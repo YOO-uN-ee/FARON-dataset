@@ -1,0 +1,142 @@
+[
+    {
+        "Plan": {
+            "Node Type": "Unique",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 138.22,
+            "Total Cost": 138.22,
+            "Plan Rows": 1,
+            "Plan Width": 4,
+            "Actual Startup Time": 0.02,
+            "Actual Total Time": 0.021,
+            "Actual Rows": 0,
+            "Actual Loops": 1,
+            "Plans": [
+                {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 138.22,
+                    "Total Cost": 138.22,
+                    "Plan Rows": 1,
+                    "Plan Width": 4,
+                    "Actual Startup Time": 0.02,
+                    "Actual Total Time": 0.021,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Sort Key": [
+                        "t_final.id"
+                    ],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 25,
+                    "Sort Space Type": "Memory",
+                    "Plans": [
+                        {
+                            "Node Type": "Nested Loop",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Join Type": "Inner",
+                            "Startup Cost": 0.15,
+                            "Total Cost": 138.21,
+                            "Plan Rows": 1,
+                            "Plan Width": 4,
+                            "Actual Startup Time": 0.005,
+                            "Actual Total Time": 0.005,
+                            "Actual Rows": 0,
+                            "Actual Loops": 1,
+                            "Inner Unique": false,
+                            "Join Filter": "st_within(t_final.geom, t1.geom)",
+                            "Rows Removed by Join Filter": 0,
+                            "Plans": [
+                                {
+                                    "Node Type": "Nested Loop",
+                                    "Parent Relationship": "Outer",
+                                    "Parallel Aware": false,
+                                    "Async Capable": false,
+                                    "Join Type": "Inner",
+                                    "Startup Cost": 0.15,
+                                    "Total Cost": 73.19,
+                                    "Plan Rows": 1,
+                                    "Plan Width": 32,
+                                    "Actual Startup Time": 0.004,
+                                    "Actual Total Time": 0.005,
+                                    "Actual Rows": 0,
+                                    "Actual Loops": 1,
+                                    "Inner Unique": false,
+                                    "Join Filter": "st_within(t1.geom, t2.geom)",
+                                    "Rows Removed by Join Filter": 0,
+                                    "Plans": [
+                                        {
+                                            "Node Type": "Index Scan",
+                                            "Parent Relationship": "Outer",
+                                            "Parallel Aware": false,
+                                            "Async Capable": false,
+                                            "Scan Direction": "Forward",
+                                            "Index Name": "generated_geometries_pkey",
+                                            "Relation Name": "generated_geometries",
+                                            "Alias": "t2",
+                                            "Startup Cost": 0.15,
+                                            "Total Cost": 8.17,
+                                            "Plan Rows": 1,
+                                            "Plan Width": 32,
+                                            "Actual Startup Time": 0.004,
+                                            "Actual Total Time": 0.004,
+                                            "Actual Rows": 0,
+                                            "Actual Loops": 1,
+                                            "Index Cond": "(id = 0)",
+                                            "Rows Removed by Index Recheck": 0,
+                                            "Filter": "((geom_type)::text = 'POLYGON'::text)",
+                                            "Rows Removed by Filter": 0
+                                        },
+                                        {
+                                            "Node Type": "Seq Scan",
+                                            "Parent Relationship": "Inner",
+                                            "Parallel Aware": false,
+                                            "Async Capable": false,
+                                            "Relation Name": "generated_geometries",
+                                            "Alias": "t1",
+                                            "Startup Cost": 0.0,
+                                            "Total Cost": 15.0,
+                                            "Plan Rows": 2,
+                                            "Plan Width": 32,
+                                            "Actual Startup Time": 0.0,
+                                            "Actual Total Time": 0.0,
+                                            "Actual Rows": 0,
+                                            "Actual Loops": 0,
+                                            "Filter": "((geom_type)::text = 'POLYGON'::text)",
+                                            "Rows Removed by Filter": 0
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Node Type": "Seq Scan",
+                                    "Parent Relationship": "Inner",
+                                    "Parallel Aware": false,
+                                    "Async Capable": false,
+                                    "Relation Name": "generated_geometries",
+                                    "Alias": "t_final",
+                                    "Startup Cost": 0.0,
+                                    "Total Cost": 15.0,
+                                    "Plan Rows": 2,
+                                    "Plan Width": 36,
+                                    "Actual Startup Time": 0.0,
+                                    "Actual Total Time": 0.0,
+                                    "Actual Rows": 0,
+                                    "Actual Loops": 0,
+                                    "Filter": "((geom_type)::text = 'POINT'::text)",
+                                    "Rows Removed by Filter": 0
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "Planning Time": 25.095,
+        "Triggers": [],
+        "Execution Time": 0.101
+    }
+]
