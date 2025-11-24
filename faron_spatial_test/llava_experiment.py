@@ -1,7 +1,7 @@
 import torch
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
 from PIL import Image
-import faron_spatial_test.topology_generator as topo # Imports the file created above
+import topology_generator as topo # Imports the file created above
 
 # --- 1. Model Setup ---
 print("Loading LLaVA Model...")
