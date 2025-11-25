@@ -1,144 +1,145 @@
 import torch
-from transformers import AutoProcessor, LlavaOnevisionForConditionalGeneration
+from transformers import AutoProcessor, Qwen3VLMoeForConditionalGeneration, AutoModelForImageTextToText
 from PIL import Image
 import topology_generator as topo # Imports the file created above
 
-# --- 1. Model Setup ---
-print("Loading LLaVA Model...")
-model_id = "llava-hf/llava-onevision-qwen2-7b-si-hf" 
+# print("Loading LLaVA Model...")
+model_id = "Qwen/Qwen3-VL-8B-Thinking" 
 
 processor = AutoProcessor.from_pretrained(model_id) 
-model = LlavaOnevisionForConditionalGeneration.from_pretrained(
+model = AutoModelForImageTextToText.from_pretrained(
     model_id,
     dtype=torch.float16,
     low_cpu_mem_usage=True,
     device_map='auto'
 )
 
-# processor = LlavaNextProcessor.from_pretrained(model_id)
-# model = LlavaNextForConditionalGeneration.from_pretrained(
-#     model_id, 
-#     torch_dtype=torch.float16, 
-#     low_cpu_mem_usage=True,
-#     device_map="auto" # Requires CUDA
-# )
-print("Model Loaded.")
+def run_inference(image, 
+                  text_prompt:str):
+    
+    if image:
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "url": image},
+                    {"type": "text", "text": text_prompt},
+                ],
+            },
+        ]
+    else:
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                ],
+            },
+        ]
 
-# --- 2. Prompt Templates ---
-
-def run_inference(image, text_prompt):
-    """Generic inference helper for LLaVA."""
-    # LLaVA 1.5 prompt format: "USER: <image>\n<prompt>\nASSISTANT:"
-    # prompt = f"USER: <image>\n{text_prompt}\nASSISTANT:"
-
-    conversation = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image"},
-                {"type": "text", "text": text_prompt},
-            ],
-        },
-    ]
-
-    inputs = processor.apply_chat_template(conversation, images=[image], add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt")
+    inputs = processor.apply_chat_template(conversation, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt")
     inputs = inputs.to(model.device, torch.float16)
+        
+    output = model.generate(**inputs, max_new_tokens=512)
+    response = processor.decode(output[0][inputs["input_ids"].shape[-1]:])
     
-    # inputs = processor(text=prompt, images=image, return_tensors="pt").to(model.device)
-    
-    # Generate
-    output = model.generate(**inputs, max_new_tokens=100)
-    response = processor.decode(output[0], skip_special_tokens=True)
-    
-    # Extract only the assistant's reply
+    print(response)
+
     try:
         return response.split("assistant")[1].strip()
     except:
         return response
 
-# --- 3. Experimental Conditions ---
 
-def run_condition_a_vision(experiment, shape_a, shape_b):
+def run_condition_a_vision(experiment, shape_a, shape_b, shape_c):
     """
-    Condition A: Vision Only.
-    The model sees the raw image and must deduce the relationship.
+    Get vision only
     """
-    print("Running Condition A (Vision Only)...")
-    image = experiment.render_to_pil(shape_a, shape_b, visual_cues=False)
+
+    print("Condition A (Vision Only)")
+    figure_name = experiment.render_to_pil(shape_a, shape_b, shape_c, visual_cues=False)
     
     prompt = (
         "Analyze the spatial relationship between the Red Object and the Blue Object. "
-        "Choose exactly one of the following: Disconnected, Touching, Overlapping, "
+        "Choose exactly one of the following: Disconnected, Touching, Overlapping, Equal, "
         "Red is Inside Blue, or Blue is Inside Red."
     )
     
-    return run_inference(image, prompt)
+    return run_inference(figure_name, prompt)
 
+def run_condition_b_coordinates(shape_a, shape_b, shape_c):
+    """
+    By text
+    """
+    print("Condition B (Text Only)")
+    
+    dummy_image = None
+    
+    bounds_a = [(round(x, 1), round(y, 1)) for x, y in shape_a.exterior.coords[:-1]]
+    bounds_b = [(round(x, 1), round(y, 1)) for x, y in shape_b.exterior.coords[:-1]]
 
-def run_condition_b_coordinates(shape_a, shape_b):
-    """
-    Condition B: Text/Coordinates Only.
-    We pass a blank image (required by pipeline) but provide precise coordinates.
-    """
-    print("Running Condition B (Coordinates)...")
-    
-    # Create a blank dummy image
-    dummy_image = Image.new('RGB', (224, 224), color='black')
-    
-    # Extract Coordinates (WKT or Bounds)
-    # Using Bounds [minx, miny, maxx, maxy] is usually easier for LLMs than full WKT
-    bounds_a = [round(x, 2) for x in shape_a.bounds]
-    bounds_b = [round(x, 2) for x in shape_b.bounds]
+    # print(bounds_a)
+    # print(bounds_b)
     
     prompt = (
         f"I am providing bounding box coordinates for two objects.\n"
         f"Object A (Red): {bounds_a}\n"
         f"Object B (Blue): {bounds_b}\n"
         "Based on these numbers, what is the topological relationship? "
-        "Are they Disconnected, Touching, Overlapping, or one Inside the other?"
+        "Are they Disconnected, Touching, Overlapping, Equal, or one Inside the other?"
     )
     
     return run_inference(dummy_image, prompt)
 
 
-def run_condition_c_visual_cues(experiment, shape_a, shape_b):
+def run_condition_c_visual_cues(experiment, shape_a, shape_b, shape_c):
     """
-    Condition C: Visual Prompting.
-    The model sees the image with explicit bounding boxes drawn on it.
+    With bbox
     """
-    print("Running Condition C (Visual Cues)...")
+    print("Condition C (With bbox)")
     
-    # Render with visual_cues=True (Dashed boxes)
-    image = experiment.render_to_pil(shape_a, shape_b, visual_cues=True)
+    figure_name = experiment.render_to_pil(shape_a, shape_b, shape_c, visual_cues=True)
     
     prompt = (
         "I have drawn dashed bounding boxes around the Red Object and the Blue Object to help you. "
         "Look at the boundaries indicated by the dashed lines. "
-        "What is the topological relationship? (Disconnected, Touching, Overlapping, Inside)"
+        "What is the topological relationship? (Disconnected, Touching, Overlapping, Inside, Equal)"
     )
     
-    return run_inference(image, prompt)
+    return run_inference(figure_name, prompt)
 
-# --- 4. Main Execution Loop ---
 
 if __name__ == "__main__":
-    exp = topo.TopologicalExperiment()
-    
-    # Let's test one specific hard case: Partial Overlap (PO)
-    print("\n--- Generating Stimuli: Partial Overlap ---")
-    shape_a, shape_b = exp.generate_sample("PO")
-    ground_truth = "PO (Partial Overlap)"
-    
-    # 1. Test Condition A
-    result_a = run_condition_a_vision(exp, shape_a, shape_b)
-    print(f"Condition A Result: {result_a}")
-    
-    # 2. Test Condition B
-    result_b = run_condition_b_coordinates(shape_a, shape_b)
-    print(f"Condition B Result: {result_b}")
-    
-    # 3. Test Condition C
-    result_c = run_condition_c_visual_cues(exp, shape_a, shape_b)
-    print(f"Condition C Result: {result_c}")
-    
-    print(f"\nGround Truth was: {ground_truth}")
+    confound = False
+
+    for i in range(1):
+        exp = topo.TopologicalExperiment()
+
+        dict_rela = {
+            "DC": "Disconnected",
+            "EC": "Externally Connected",
+            "PO": "Partially Overlapping",
+            "EQ": "Equal",
+            "TPP": "Tangential Proper Part",    # touching within
+            "nTPP": "non-Tangential Proper Part",   # not touching within
+        }
+
+        test_rela = "nTPP"
+        
+        shape_a, shape_b = exp.generate_sample(test_rela)
+        ground_truth = test_rela
+
+        if confound:
+            shape_c = exp.generate_confounder(shape_a, shape_b)
+        else: shape_c = None
+        
+        result_a = run_condition_a_vision(exp, shape_a, shape_b, shape_c)
+        print(f"Condition A Result: {result_a}\n")
+        
+        # result_b = run_condition_b_coordinates(shape_a, shape_b, shape_c)
+        # print(f"Condition B Result: {result_b}\n")
+        
+        # result_c = run_condition_c_visual_cues(exp, shape_a, shape_b, shape_c)
+        # print(f"Condition C Result: {result_c}\n")
+        
+        # print(f"\nGround Truth: {dict_rela[ground_truth]}")
