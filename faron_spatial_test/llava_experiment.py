@@ -35,7 +35,7 @@ def run_inference(image, text_prompt):
         {
             "role": "user",
             "content": [
-                {"type": "image",},
+                {"type": "image"},
                 {"type": "text", "text": text_prompt},
             ],
         },

@@ -13,36 +13,36 @@ SQL_STEPS_TEXT = """
 --- SQL Steps in Execution Order ---
 
 -- Step 1 (L4: Index Scan) --
--- Output Table: temp_yiizphvh
-CREATE TEMPORARY TABLE temp_yiizphvh AS (SELECT * FROM public.generated_geometries WHERE (id = 2) AND ((geom_type)::text = 'Polygon'::text));
+-- Output Table: temp_omidqjic
+CREATE TEMPORARY TABLE temp_omidqjic AS (SELECT * FROM public.generated_geometries WHERE (id = 2) AND (((geom_type)::text = 'Polygon'::text)));
 
 -- Step 2 (L4: Seq Scan) --
--- Output Table: temp_rhjigwgv
-CREATE TEMPORARY TABLE temp_rhjigwgv AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
+-- Output Table: temp_sdbvhwyq
+CREATE TEMPORARY TABLE temp_sdbvhwyq AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
 
 -- Step 3 (L3: Nested Loop) --
--- Output Table: temp_dhrxcykw
-CREATE TEMPORARY TABLE temp_dhrxcykw AS (SELECT * FROM temp_yiizphvh AS t2 INNER JOIN temp_rhjigwgv AS t1 ON st_within(t1.geom, t2.geom));
+-- Output Table: temp_nsaafxra
+CREATE TEMPORARY TABLE temp_nsaafxra AS (SELECT * FROM temp_omidqjic AS t2 INNER JOIN temp_sdbvhwyq AS t1 ON st_within(t1.geom, t2.geom));
 
 -- Step 4 (L3: Seq Scan) --
--- Output Table: temp_gdirqspf
-CREATE TEMPORARY TABLE temp_gdirqspf AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'POINT'::text));
+-- Output Table: temp_zwhktvxj
+CREATE TEMPORARY TABLE temp_zwhktvxj AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Point'::text));
 
 -- Step 5 (L2: Nested Loop) --
--- Output Table: temp_rtfzqmvl
-CREATE TEMPORARY TABLE temp_rtfzqmvl AS (SELECT * FROM temp_dhrxcykw AS t2 INNER JOIN temp_gdirqspf AS t_final ON st_within(t_final.geom, t2.geom));
+-- Output Table: temp_didqisyj
+CREATE TEMPORARY TABLE temp_didqisyj AS (SELECT * FROM temp_nsaafxra AS t2 INNER JOIN temp_zwhktvxj AS t_final ON st_within(t_final.geom, t1.geom));
 
 -- Step 6 (L1: Sort) --
--- Output Table: temp_kgqgvbsh
-CREATE TEMPORARY TABLE temp_kgqgvbsh AS (SELECT * FROM temp_rtfzqmvl ORDER BY t_final.id);
+-- Output Table: temp_pwlljrzx
+CREATE TEMPORARY TABLE temp_pwlljrzx AS (SELECT * FROM temp_didqisyj ORDER BY t_final.id);
 
 -- Step 7 (L0: Unique) --
--- Output Table: temp_vzgioibc
-CREATE TEMPORARY TABLE temp_vzgioibc AS (SELECT * FROM (unknown_operation: Unique));
+-- Output Table: temp_nzqfbhue
+CREATE TEMPORARY TABLE temp_nzqfbhue AS (SELECT * FROM (unknown_operation: Unique));
 
 --- Final Query (Root Node) ---
-The final result is in table: temp_vzgioibc
-(Run 'SELECT * FROM temp_vzgioibc;' to see results)
+The final result is in table: temp_nzqfbhue
+(Run 'SELECT * FROM temp_nzqfbhue;' to see results)
 """
 
 # Your database connection

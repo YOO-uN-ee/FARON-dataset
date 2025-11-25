@@ -1,9 +1,9 @@
 {
-    "question": "Which **POINTs** in the database **within** a **POLYGON** that, in turn, **within** **the POLYGON with ID 0**?",
+    "question": "Which Points in the image is within a Polygon that is within P2?",
     "reasoning": [
-        "**Step 1 (Intermediate Set):** Find all `POLYGON` geometries that `within` (using `ST_Within(.., ..)`) the POLYGON with ID 0.",
-        "**Step 2 (Final Set):** Find all `POINT` geometries that `within` (using `ST_Within(.., ..)`) any of the geometries from the intermediate set.",
-        "**Step 3:** Return the distinct names/IDs of these final geometries."
+        "Step 1: Find all `Polygon` geometries that `within` P2 (excluding P2 itself).",
+        "Step 2: Find all `Point` geometries that `within` the results from Step 1.",
+        "Step 3: Return the distinct names/IDs."
     ],
-    "sql": "WITH IntermediateSet AS (\nSELECT T1.geom\nFROM generated_geometries AS T1, generated_geometries AS T2\nWHERE\nT1.geom_type = 'POLYGON'\nAND T2.id = 0\nAND T2.geom_type = 'POLYGON'\nAND ST_Within(T1.geom, T2.geom)\n)\nSELECT DISTINCT T_Final.id\nFROM generated_geometries AS T_Final, IntermediateSet\nWHERE\nT_Final.geom_type = 'POINT'\nAND ST_Within(T_Final.geom, IntermediateSet.geom);"
+    "sql": "WITH IntermediateSet AS (\nSELECT T1.geom\nFROM generated_geometries AS T1, generated_geometries AS T2\nWHERE\nT1.geom_type = 'Polygon'\nAND T2.id = 'P2'\nAND T2.geom_type = 'Polygon'\nAND T1.id <> T2.id\nAND ST_Within(T1.geom, T2.geom)\n)\nSELECT DISTINCT T_Final.id\nFROM generated_geometries AS T_Final, IntermediateSet\nWHERE\nT_Final.geom_type = 'Point'\nAND ST_Within(T_Final.geom, IntermediateSet.geom);"
 }

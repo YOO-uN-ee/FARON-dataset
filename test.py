@@ -164,7 +164,7 @@ def create_touching_pairs(polygons, indices_to_use, relationships_list):
             modified_polygons[idx_b] = moved_poly_b
             
         # --- ADDED RELATIONSHIP ---
-        relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "touches"])
+        relationships_list.append([["Polygon", f"P{idx_a}"], ["Polygon", f"P{idx_b}"], "touches"])
         # ---
     
     return modified_polygons
@@ -223,7 +223,7 @@ def create_aligned_edges(polygons, indices_to_use, relationships_list):
                 modified_polygons[idx_b] = final_poly_b
                 pair_aligned = True
                 # --- MODIFIED RELATIONSHIP ---
-                relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "aligned"])
+                relationships_list.append([["Polygon", f"P{idx_a}"], ["Polygon", f"P{idx_b}"], "aligned"])
                 # ---
                 break
         
@@ -253,18 +253,23 @@ def create_overlapping_pairs(polygons, indices_to_use, relationships_list):
         modified_polygons[idx_b] = moved_poly_b
         
         # --- ADDED RELATIONSHIP ---
-        relationships_list.append([["POLYGON", idx_a], ["POLYGON", idx_b], "overlaps"])
+        relationships_list.append([["Polygon", f"P{idx_a}"], ["Polygon", f"P{idx_b}"], "overlaps"])
         # ---
         
     return modified_polygons
 
 def create_contained_pairs(polygons, indices_to_use, relationships_list):
-    """Adjusts specified polygon pairs so one is contained within another."""
+    """
+    Adjusts specified polygon pairs so one is STRICTLY contained within another.
+    Uses an iterative shrink-to-fit method to prevent edges from sticking out.
+    """
     modified_polygons = polygons[:]
+    
     for i in range(0, len(indices_to_use), 2):
         idx_1 = indices_to_use[i]
         idx_2 = indices_to_use[i+1]
         
+        # Determine which is larger to be the container
         if modified_polygons[idx_1].area > modified_polygons[idx_2].area:
             idx_a, idx_b = idx_1, idx_2 # A is container, B is contained
         else:
@@ -273,21 +278,42 @@ def create_contained_pairs(polygons, indices_to_use, relationships_list):
         poly_a = modified_polygons[idx_a]
         poly_b = modified_polygons[idx_b]
         
-        scale_factor = min(0.5, math.sqrt(poly_a.area / poly_b.area) * 0.5)
-        scaled_poly_b = affinity.scale(poly_b, xfact=scale_factor, yfact=scale_factor, origin='center')
+        # 1. Initial Scale: aggressive scaling to start (make it clearly smaller)
+        target_area_ratio = 0.4
+        current_ratio = poly_b.area / poly_a.area
+        scale_needed = math.sqrt(target_area_ratio / current_ratio) if current_ratio > 0 else 0.5
+        
+        poly_b = affinity.scale(poly_b, xfact=scale_needed, yfact=scale_needed, origin='center')
 
+        # 2. Move B to a safe spot inside A
+        # representative_point() is guaranteed to be inside A, unlike centroid.
         target_point = poly_a.representative_point()
-        source_centroid = scaled_poly_b.centroid
+        source_centroid = poly_b.centroid
         x_off = target_point.x - source_centroid.x
         y_off = target_point.y - source_centroid.y
         
-        final_poly_b = affinity.translate(scaled_poly_b, xoff=x_off, yoff=y_off)
-        modified_polygons[idx_b] = final_poly_b
+        poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
         
-        # --- ADDED RELATIONSHIP ---
-        # idx_b is the smaller polygon, idx_a is the container
-        relationships_list.append([["POLYGON", idx_b], ["POLYGON", idx_a], "within"])
-        # ---
+        # 3. Iterative Shrink-to-Fit
+        # If B still sticks out (due to rotation/shape), shrink it until it fits.
+        max_shrink_attempts = 20
+        shrink_factor = 0.9
+        
+        for _ in range(max_shrink_attempts):
+            if poly_a.contains(poly_b):
+                break # It fits!
+            
+            # It doesn't fit, shrink it slightly and try again
+            poly_b = affinity.scale(poly_b, xfact=shrink_factor, yfact=shrink_factor, origin='center')
+            
+            # Optional: If it gets ridiculously small, stop to prevent errors
+            if poly_b.area < 0.5: 
+                break
+
+        modified_polygons[idx_b] = poly_b
+        
+        # Update relationship list
+        relationships_list.append([["Polygon", f"P{idx_b}"], ["Polygon", f"P{idx_a}"], "within"])
         
     return modified_polygons
 
@@ -487,11 +513,12 @@ def move_point_into_poly(container_poly, point_to_move):
     final_point = affinity.translate(point_to_move, xoff=x_off, yoff=y_off)
     return final_point
 
-def plot_geometries(polygons, lines, points, canvas_bounds, title_info="", save_path="./polygons.png"):
+def plot_geometries(polygon_data, line_data, point_data, canvas_bounds, title_info="", save_path="./polygons.png"):
     """
-    Visualizes the generated geometries. 
-    Calculates 'safe' label positions by subtracting inner polygons from outer ones
-    to ensure labels don't stack on top of each other.
+    Visualizes the generated geometries.
+    
+    Arguments now expect lists of tuples: [(id, geometry), ...]
+    This ensures labels match the logical IDs even if we sort the list for rendering order.
     """
     fig, ax = plt.subplots(figsize=(12, 12))
     min_x, min_y, max_x, max_y = canvas_bounds
@@ -499,74 +526,80 @@ def plot_geometries(polygons, lines, points, canvas_bounds, title_info="", save_
     ax.set_aspect('equal', adjustable='box')
     
     texts_to_adjust = []
-    points_to_avoid = []
+    points_to_avoid = [] 
 
-    # 1. Plot Polygons and calculate SMART label positions
-    for i, poly in enumerate(polygons):
+    text_obj_to_id = {}
+
+    # Extract just the geometries for calculation purposes
+    all_polys = [p for _, p in polygon_data]
+
+    # 1. Plot Polygons 
+    # We iterate through the tuples to get the specific ID associated with that shape
+    for real_id, poly in polygon_data:
         color = (random.random(), random.random(), random.random())
         x, y = poly.exterior.xy
         ax.fill(x, y, color=color, alpha=0.7, edgecolor='black', linewidth=0.5)
         
-        # --- SMART LABEL LOGIC START ---
-        # Start with the full polygon area
+        # --- EXCLUSIVE REGION LOGIC ---
         label_region = poly
-        
-        # Check all other polygons to see if they are inside the current one
-        # If they are, subtract them from the labeling region
-        for j, other_poly in enumerate(polygons):
-            if i == j: continue # Don't check against self
-            
-            # If the current polygon (poly) contains the other polygon (other_poly),
-            # we subtract the other_poly area so the label doesn't end up there.
-            if poly.contains(other_poly):
+        for _, other_poly in polygon_data:
+            if poly == other_poly: continue 
+            if poly.intersects(other_poly):
                 try:
-                    label_region = label_region.difference(other_poly)
+                    diff = label_region.difference(other_poly)
+                    if not diff.is_empty:
+                        label_region = diff
                 except Exception:
-                    # Fallback if topological error occurs
                     pass
         
-        # Get a point that is guaranteed to be in the "Green but not Brown" area
-        # If the difference wiped out the polygon (unlikely), fallback to original
-        if label_region.is_empty:
+        if label_region.is_empty or label_region.geom_type == 'GeometryCollection':
              c = poly.representative_point()
         else:
              c = label_region.representative_point()
-        # --- SMART LABEL LOGIC END ---
 
-        # Create annotation
-        ann = ax.annotate(f"P{i}", 
+        # Use 'real_id' for the label, not the loop index
+        str_id = f"P{real_id}"
+        ann = ax.annotate(str_id, 
                           xy=(c.x, c.y), 
                           xytext=(c.x, c.y),
-                          fontsize=10, ha='center', va='center', color='white',
-                          path_effects=[PathEffects.withStroke(linewidth=2, foreground="black")])
+                          fontsize=11, ha='center', va='center', color='white',
+                          path_effects=[PathEffects.withStroke(linewidth=3, foreground="black")])
         texts_to_adjust.append(ann)
+        text_obj_to_id[ann] = str_id
 
     # 2. Plot Lines
-    for i, line in enumerate(lines):
+    for real_id, line in line_data:
         x, y = line.xy
-        if len(x) == 2: 
-            ax.plot(x, y, color='blue', linewidth=2, alpha=0.9)
-        else: 
-            ax.plot(x, y, color='purple', linewidth=2, alpha=0.9, linestyle='--')
+        ax.plot(x, y, color='purple', linewidth=2, alpha=0.9, linestyle='--')
         
         mid_point = line.interpolate(0.5, normalized=True)
         
-        ann = ax.annotate(f"L{i}", 
+        # Use 'real_id'
+        str_id = f"L{real_id}"
+        ann = ax.annotate(str_id, 
                           xy=(mid_point.x, mid_point.y), 
                           xytext=(mid_point.x, mid_point.y),
-                          fontsize=9, color='blue', ha='center', va='center')
+                          fontsize=11, color='black', ha='center', va='center', 
+                          path_effects=[PathEffects.withStroke(linewidth=3, foreground="white")])
         texts_to_adjust.append(ann)
+        text_obj_to_id[ann] = str_id
 
     # 3. Plot Points
-    for i, point in enumerate(points):
-        scatter_pt = ax.scatter(point.x, point.y, c='black', s=30, zorder=5)
+    for real_id, point in point_data:
+        scatter_pt = ax.scatter(point.x, point.y, c='black', s=50, zorder=5)
         points_to_avoid.append(scatter_pt)
 
-        ann = ax.annotate(f"Pt{i}", 
+        # Use 'real_id'
+        str_id = f"Pt{real_id}"
+        ann = ax.annotate(str_id, 
                           xy=(point.x, point.y), 
-                          xytext=(point.x, point.y),
-                          fontsize=9, color='black')
+                          xytext=(point.x + 0.5, point.y + 0.5), 
+                          textcoords='data',
+                          ha='left', va='bottom',
+                          fontsize=11, color='black', 
+                          path_effects=[PathEffects.withStroke(linewidth=2, foreground="white")])
         texts_to_adjust.append(ann)
+        text_obj_to_id[ann] = str_id
     
     ax.set_xticks([]) 
     ax.set_yticks([]) 
@@ -577,112 +610,157 @@ def plot_geometries(polygons, lines, points, canvas_bounds, title_info="", save_
     adjust_text(texts_to_adjust, 
                 ax=ax, 
                 add_objects=points_to_avoid,
-                arrowprops=dict(arrowstyle='-', color='gray', lw=0.5, shrinkA=5, shrinkB=5),
-                force_text=(0.1, 0.5), 
-                force_points=(0.2, 0.5),
-                expand_points=(1.2, 1.2)
+                force_text=(0.3, 0.5),   
+                force_points=(0.1, 0.2), 
+                expand_points=(1.1, 1.1)
                 )
 
     plt.savefig(save_path)
     print(f"Plot saved to {save_path}")
 
-def save_geometries_to_postgis(
-    polygons, points, straight_lines,
-    is_regular_polygon, db_config
-):
-    """Connects to PostGIS and saves all geometry types."""
+    final_positions = {}
+    for ann in texts_to_adjust:
+        # Get the final position (x, y) after adjustment
+        final_x, final_y = ann.get_position()
+        label_id = text_obj_to_id[ann]
+        final_positions[label_id] = (final_x, final_y)
+        
+    return final_positions
+
+def save_geometries_to_postgis(polygon_data, point_data, line_data, label_positions, is_regular_polygon, db_config):
+    """
+    Connects to PostGIS and saves all geometry types with their alphanumeric IDs (e.g., 'Pt2').
+    """
     conn = None
     try:
         print("\nConnecting to the PostGIS database...")
         conn = psycopg2.connect(**db_config)
         cur = conn.cursor()
-        # try:
-        #     cur.execute("CREATE EXTENSION postgis;")
-        # except:
-        #     pass
 
+        # 1. Drop old table to ensure schema update (int -> varchar)
+        cur.execute("DROP TABLE IF EXISTS generated_geometries;")
+
+        # 2. Create table with id as VARCHAR
         create_table_sql = """
-        CREATE TABLE IF NOT EXISTS generated_geometries (
-            id SERIAL PRIMARY KEY, 
+        CREATE TABLE generated_geometries (
+            id VARCHAR(20) PRIMARY KEY, 
             geom GEOMETRY(GEOMETRY, 0),
             geom_type VARCHAR(20), 
             style VARCHAR(20),
             vertices INTEGER, 
             area DOUBLE PRECISION,
+            label_x DOUBLE PRECISION,
+            label_y DOUBLE PRECISION,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );"""
-        # print(create_table_sql)
         cur.execute(create_table_sql)
-        print("Clearing old data from the table...")
-        cur.execute("DELETE FROM generated_geometries;")
         
-        # print(f"Inserting {len(polygons)} polygons...")
         polygon_style = "regular" if is_regular_polygon else "irregular"
-        for poly in polygons:
-            cur.execute(
-                """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText(%s, 0), 'Polygon', %s, %s, %s);""",
-                (poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area)
-            )
 
-            # print(
-            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText('%s', 0), 'Polygon', '%s', %s, %s);""" %
-            #     (poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area)
-            # )
+        # 3. Insert Polygons (P0, P1...)
+        # We iterate over the tuple list: (real_id, geometry)
+        for real_id, poly in polygon_data:
+            str_id = f"P{real_id}"
+
+            raw_lx, raw_ly = label_positions.get(str_id, (0, 0))
+            lx = float(raw_lx)
+            ly = float(raw_ly)
+
+            cur.execute(
+                """INSERT INTO generated_geometries (id, geom, geom_type, style, vertices, area, label_x, label_y)
+                   VALUES (%s, ST_GeomFromText(%s, 0), 'Polygon', %s, %s, %s, %s, %s);""",
+                (str_id, poly.wkt, polygon_style, len(poly.exterior.coords) - 1, poly.area, lx, ly)
+            )
         
-        # print(f"Inserting {len(points)} points...")
-        for point in points:
+        # 4. Insert Points (Pt0, Pt1...)
+        for real_id, point in point_data:
+            str_id = f"Pt{real_id}"
+
+            raw_lx, raw_ly = label_positions.get(str_id, (0, 0))
+            lx = float(raw_lx)
+            ly = float(raw_ly)
+
             cur.execute(
-                """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText(%s, 0), 'Point', 'point', 1, 0);""",
-                (point.wkt,)
+                """INSERT INTO generated_geometries (id, geom, geom_type, style, vertices, area, label_x, label_y)
+                   VALUES (%s, ST_GeomFromText(%s, 0), 'Point', 'point', 1, 0, %s, %s);""",
+                (str_id, point.wkt, lx, ly)
             )
 
-            # print(
-            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText('%s', 0), 'Point', 'point', 1, 0);""" %
-            #     (point.wkt,)
-            # )
+        # 5. Insert Lines (L0, L1...)
+        for real_id, line in line_data:
+            str_id = f"L{real_id}"
 
-        # print(f"Inserting {len(straight_lines)} straight lines...")
-        for line in straight_lines:
+            raw_lx, raw_ly = label_positions.get(str_id, (0, 0))
+            lx = float(raw_lx)
+            ly = float(raw_ly)
+
             cur.execute(
-                """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-                   VALUES (ST_GeomFromText(%s, 0), 'LineString', 'straight', %s, 0);""",
-                (line.wkt, len(line.coords))
+                """INSERT INTO generated_geometries (id, geom, geom_type, style, vertices, area, label_x, label_y)
+                   VALUES (%s, ST_GeomFromText(%s, 0), 'Line', 'straight', %s, 0, %s, %s);""",
+                (str_id, line.wkt, len(line.coords), lx, ly)
             )
-
-            # print(
-            #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-            #        VALUES (ST_GeomFromText('%s', 0), 'LineString', 'line', %s, 0);""" %
-            #     (line.wkt, len(line.coords))
-            # )
-        
-        # print(f"Inserting {len(curly_lines)} curly lines...")
-        # for line in curly_lines:
-        #     # cur.execute(
-        #     #     """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-        #     #        VALUES (ST_GeomFromText(%s, 0), 'LineString', 'curly', %s, 0);""",
-        #     #     (line.wkt, len(line.coords))
-        #     # )
-
-        #     print(
-        #         """INSERT INTO generated_geometries (geom, geom_type, style, vertices, area)
-        #            VALUES (ST_GeomFromText(%s, 0), 'LineString', 'curly', %s, 0);""",
-        #         (line.wkt, len(line.coords))
-        #     )
 
         conn.commit()
         print("Successfully saved all geometries to the database.")
     except (Exception, psycopg2.DatabaseError) as error:
         print(f"Database error: {error}")
-        # pass
     finally:
-        # pass
         if conn is not None:
             conn.close()
             print("Database connection closed.")
+
+# def save_geometries_to_postgis(polygon_data, point_data, line_data, label_positions, is_regular_polygon, db_config):
+#     """
+#     Saves geometries AND their calculated label coordinates to DB.
+#     """
+#     conn = None
+#     try:
+#         print("\nConnecting to PostGIS...")
+#         conn = psycopg2.connect(**db_config)
+#         cur = conn.cursor()
+#         cur.execute("DROP TABLE IF EXISTS generated_geometries;")
+
+#         # Added label_x and label_y columns
+#         create_table_sql = """
+#         CREATE TABLE generated_geometries (
+#             id VARCHAR(20) PRIMARY KEY, 
+#             geom GEOMETRY(GEOMETRY, 0),
+#             geom_type VARCHAR(20), 
+#             style VARCHAR(20),
+#             vertices INTEGER, 
+#             area DOUBLE PRECISION,
+#             label_x DOUBLE PRECISION,
+#             label_y DOUBLE PRECISION,
+#             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+#         );"""
+#         cur.execute(create_table_sql)
+        
+#         polygon_style = "regular" if is_regular_polygon else "irregular"
+
+#         # Helper to insert
+#         def insert_row(real_id, prefix, geom, gtype, style, verts, area):
+#             str_id = f"{prefix}{real_id}"
+#             raw_lx, raw_ly = label_positions.get(str_id, (0, 0)) # Retrieve coords
+            
+#             lx = float(raw_lx)
+#             ly = float(raw_ly)
+            
+#             cur.execute(
+#                 """INSERT INTO generated_geometries (id, geom, geom_type, style, vertices, area, label_x, label_y)
+#                    VALUES (%s, ST_GeomFromText(%s, 0), %s, %s, %s, %s, %s, %s);""",
+#                 (str_id, geom.wkt, gtype, style, verts, area, lx, ly)
+#             )
+
+#         for rid, p in polygon_data: insert_row(rid, "P", p, 'Polygon', polygon_style, len(p.exterior.coords)-1, p.area)
+#         for rid, p in point_data:   insert_row(rid, "Pt", p, 'Point', 'point', 1, 0)
+#         for rid, l in line_data:    insert_row(rid, "L", l, 'LineString', 'straight', len(l.coords), 0)
+
+#         conn.commit()
+#         print("Successfully saved all geometries and labels to database.")
+#     except (Exception, psycopg2.DatabaseError) as error:
+#         print(f"Database error: {error}")
+#     finally:
+#         if conn: conn.close()
 
 if __name__ == '__main__':
     # --- Configuration ---
@@ -699,7 +777,7 @@ if __name__ == '__main__':
     # --- Polygon Stuff ---
     NUM_POLYGONS = 3
     VERTEX_RANGE = (3, 6)
-    RADIUS_RANGE = (5, 25)
+    RADIUS_RANGE = (10, 35)
     CREATE_REGULAR_SHAPES = False
 
     # --- Polygon Relationship Controls ---
@@ -718,6 +796,8 @@ if __name__ == '__main__':
     # --- Point Stuff ---
     NUM_POINTS = 10
     POINT_CONTAINMENT_PROBABILITY = 0.3
+
+    MIN_POINT_DISTANCE = 8.0
 
     # --- Disjoint Placement Controls ---
     MAX_ATTEMPTS_PER_PLACEMENT = 100 # Attempts to find a disjoint spot
@@ -838,7 +918,7 @@ if __name__ == '__main__':
             modified_lines.append(final_line)
 
             line_idx = len(modified_lines) - 1
-            all_relationships.append([["LINE", line_idx], ["POLYGON", container_idx], "within"])
+            all_relationships.append([["Line", f"L{line_idx}"], ["Polygon", f"P{container_idx}"], "within"])
 
             num_contained_lines += 1
         
@@ -865,52 +945,74 @@ if __name__ == '__main__':
 
     print(f"Generating and placing {NUM_POINTS} points...")
     for _ in range(NUM_POINTS):
-        if random.random() < POINT_CONTAINMENT_PROBABILITY:
-            container_idx = random.choice(range(len(modified_polygons)))
-            container_poly = modified_polygons[container_idx]
-            # container_poly = random.choice(modified_polygons)
-            point_to_place = generate_one_point(CANVAS_BOUNDS)
-            final_point = move_point_into_poly(container_poly, point_to_place)
-            modified_points.append(final_point)
-
-            point_idx = len(modified_points) - 1
-            all_relationships.append([["POINT", point_idx], ["POLYGON", container_idx], "within"])
-
-            num_contained_points += 1
         
-        else:
-            attempt = 0
-            is_placed = False
-            while attempt < MAX_ATTEMPTS_PER_PLACEMENT:
-                point_to_check = generate_one_point(CANVAS_BOUNDS)
-                
-                overlaps_polygons = point_to_check.intersects(all_poly_footprint)
-                overlaps_other_free = any(point_to_check.intersects(g) for g in placed_free_geometries)
-
-                if not overlaps_polygons and not overlaps_other_free:
-                    modified_points.append(point_to_check)
-                    placed_free_geometries.append(point_to_check)
-                    is_placed = True
-                    break
-                attempt += 1
+        point_successfully_placed = False
+        attempt = 0
+        
+        # We try multiple times to find a point that is valid AND far enough from others
+        while not point_successfully_placed and attempt < MAX_ATTEMPTS_PER_PLACEMENT:
+            attempt += 1
             
-            if not is_placed:
-                print(f"Warning: Could not find disjoint spot for a free point. Skipping.")
+            # 1. Generate Candidate Point (Contained or Free)
+            is_contained = (random.random() < POINT_CONTAINMENT_PROBABILITY and len(modified_polygons) > 0)
+            candidate_point = None
+            
+            if is_contained:
+                container_idx = random.choice(range(len(modified_polygons)))
+                container_poly = modified_polygons[container_idx]
+                raw_point = generate_one_point(CANVAS_BOUNDS)
+                # Uses our random placement helper
+                candidate_point = move_point_into_poly(container_poly, raw_point)
+            else:
+                candidate_point = generate_one_point(CANVAS_BOUNDS)
+                # If free, must not be inside a polygon
+                if candidate_point.intersects(all_poly_footprint):
+                    continue 
+
+            # 2. Check Distance against ALL existing points
+            too_close = False
+            for existing_point in modified_points:
+                if candidate_point.distance(existing_point) < MIN_POINT_DISTANCE:
+                    too_close = True
+                    break
+            
+            if too_close:
+                # Discard and try again ("replace them")
+                continue
+
+            # 3. Accept the Point
+            modified_points.append(candidate_point)
+            point_idx = len(modified_points) - 1
+            
+            if is_contained:
+                # all_relationships.append([["Point", point_idx], ["Polygon", container_idx], "within"])
+                all_relationships.append([["Point", f"Pt{point_idx}"], ["Polygon", f"P{container_idx}"], "within"])
+            else:
+                placed_free_geometries.append(candidate_point)
+            
+            point_successfully_placed = True
+
+        if not point_successfully_placed:
+            print("Warning: Could not place a point satisfying distance constraints.")
 
     # --- Sorting for Plotting ---
     all_geometries = modified_polygons + modified_lines + modified_points
-    # modified_polygons.sort(key=lambda p: p.area, reverse=True)
+
+    polygon_data = list(enumerate(modified_polygons))
+    line_data = list(enumerate(modified_lines))
+    point_data = list(enumerate(modified_points))
+
+    polygon_data.sort(key=lambda p: p[1].area, reverse=True)
     
     # --- Plotting ---
     print(f"Generated {len(all_geometries)} total geometries.")
-    title = (f"Polys: {len(modified_polygons)} ({NUM_ALIGNED_PAIRS} Aligned, {NUM_OVERLAPPING_PAIRS} Overlap, {NUM_CONTAINED_PAIRS} Contained | "
-             f"Lines: {len(modified_lines)} | Points: {len(modified_points)}")
-    plot_geometries(modified_polygons, modified_lines, modified_points, CANVAS_BOUNDS, title_info=title)
+    final_label_coords = plot_geometries(polygon_data, line_data, point_data, CANVAS_BOUNDS)
 # 
     # --- Database Saving ---
     if SAVE_TO_DB:
         save_geometries_to_postgis(
-            modified_polygons, modified_points, modified_lines, 
+            polygon_data, point_data, line_data, 
+            final_label_coords,
             CREATE_REGULAR_SHAPES, DB_CONFIG
         )
 

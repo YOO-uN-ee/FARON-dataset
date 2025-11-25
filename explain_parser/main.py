@@ -11,7 +11,7 @@ with open("../query_plan.json", 'r') as f:
     # Use json.load() to parse the file object into a Python object
     # query_plan_data = json.loads(f)
     PLAN_JSON = f.read()
-    print(PLAN_JSON)
+    # print(PLAN_JSON)
 
 # PLAN_JSON = """
 # [
@@ -78,18 +78,19 @@ if __name__ == "__main__":
     
     # 2. Generate the list of SQL steps in execution order
     execution_steps = generate_sql_steps(root)
-    
-    print("--- SQL Steps in Execution Order ---")
-    
-    if not execution_steps:
-        print("No executable SQL steps were generated.")
-    else:
-        for i, step in enumerate(execution_steps):
-            print(f"\n-- Step {i + 1} (L{step['level']}: {step['node_type']}) --")
-            print(f"-- Output Table: {step['temp_table']}")
-            print(step['sql_command'])
-            
-        print("\n--- Final Query (Root Node) ---")
-        final_step = execution_steps[-1]
-        print(f"The final result is in table: {final_step['temp_table']}")
-        print(f"(Run 'SELECT * FROM {final_step['temp_table']};' to see results)")
+
+    with open('../execution.txt', 'w') as f:
+        print("--- SQL Steps in Execution Order ---", file=f)
+        
+        if not execution_steps:
+            print("No executable SQL steps were generated.")
+        else:
+            for i, step in enumerate(execution_steps):
+                print(f"\n-- Step {i + 1} (L{step['level']}: {step['node_type']}) --", file=f)
+                print(f"-- Output Table: {step['temp_table']}", file=f)
+                print(step['sql_command'], file=f)
+                
+            print("\n--- Final Query (Root Node) ---", file=f)
+            final_step = execution_steps[-1]
+            print(f"The final result is in table: {final_step['temp_table']}", file=f)
+            print(f"(Run 'SELECT * FROM {final_step['temp_table']};' to see results)", file=f)

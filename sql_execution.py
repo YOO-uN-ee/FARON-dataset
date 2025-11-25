@@ -2,6 +2,7 @@ import geopandas as gpd
 import sqlalchemy
 from sqlalchemy import URL
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import os
 import re
 
@@ -154,6 +155,40 @@ class StatefulSqlVisualizer:
                         ax=ax, edgecolor='black', facecolor=plot_color,
                         alpha=0.8, zorder=5
                     )
+
+                    has_label_coords = 'label_x' in gdf.columns and 'label_y' in gdf.columns
+                    
+                    # Determine label column (id, id_1, etc.)
+                    label_col = 'id'
+                    if label_col not in gdf.columns:
+                        possible = [c for c in gdf.columns if 'id' in c.lower()]
+                        if possible: label_col = possible[0]
+                    
+                    if label_col in gdf.columns:
+                        for _, row in gdf.iterrows():
+                            if row[geom_col] is None: continue
+                            
+                            # 1. Try to use EXACT saved coordinates
+                            if has_label_coords and row['label_x'] is not None:
+                                x, y = row['label_x'], row['label_y']
+                            
+                            # 2. Fallback if column missing or null (e.g., intermediate join table)
+                            else:
+                                geom = row[geom_col]
+                                if geom.geom_type == 'Point':
+                                    x, y = geom.x + 1.5, geom.y + 1.5
+                                else:
+                                    rep = geom.representative_point()
+                                    x, y = rep.x, rep.y
+
+                            label_text = str(row[label_col])
+
+                            txt = ax.text(
+                                x, y, label_text, 
+                                fontsize=11, fontweight='bold', color='white', 
+                                ha='center', va='center', zorder=10
+                            )
+                            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='black')])
                 else:
                     print("  > Current stage is empty.")
                 
@@ -162,6 +197,8 @@ class StatefulSqlVisualizer:
                     ax.set_ylim(total_bounds[1], total_bounds[3])
                 
                 ax.set_title(name)
+                ax.set_xticks([]) 
+                ax.set_yticks([])
                 output_filename = os.path.join(output_dir, f"{name}.png")
                 fig.savefig(output_filename)
                 
@@ -196,40 +233,48 @@ if __name__ == "__main__":
 
     CANVAS_BOUNDS = (0, 0, 100, 100)
 
-    SQL_STEPS_TEXT = """
-    --- SQL Steps in Execution Order ---
+    try:
+        with open('execution.txt', 'r') as f:
+            SQL_STEPS_TEXT = f.read()
+    except FileNotFoundError:
+        print("Error: 'execution.txt' was not found. Make sure the file exists in the same directory.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+#     SQL_STEPS_TEXT = """
+# --- SQL Steps in Execution Order ---
 
-    -- Step 1 (L4: Index Scan) --
-    -- Output Table: temp_znjughrk
-    CREATE TEMPORARY TABLE temp_znjughrk AS (SELECT * FROM public.generated_geometries WHERE (id = 1) AND ((geom_type)::text = 'Polygon'::text));
+# -- Step 1 (L4: Index Scan) --
+# -- Output Table: temp_mlsfchpr
+# CREATE TEMPORARY TABLE temp_mlsfchpr AS (SELECT * FROM public.generated_geometries WHERE ((id)::text = 'P2'::text) AND (((geom_type)::text = 'Polygon'::text)));
 
-    -- Step 2 (L4: Seq Scan) --
-    -- Output Table: temp_rtvtbklp
-    CREATE TEMPORARY TABLE temp_rtvtbklp AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
+# -- Step 2 (L4: Seq Scan) --
+# -- Output Table: temp_bxqoyfcg
+# CREATE TEMPORARY TABLE temp_bxqoyfcg AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
 
-    -- Step 3 (L3: Nested Loop) --
-    -- Output Table: temp_yimcnlzg
-    CREATE TEMPORARY TABLE temp_yimcnlzg AS (SELECT * FROM temp_znjughrk AS t2 INNER JOIN temp_rtvtbklp AS t1 ON st_within(t1.geom, t2.geom));
+# -- Step 3 (L3: Nested Loop) --
+# -- Output Table: temp_kwoqcltv
+# CREATE TEMPORARY TABLE temp_kwoqcltv AS (SELECT * FROM temp_mlsfchpr AS t2 INNER JOIN temp_bxqoyfcg AS t1 ON st_within(t1.geom, t2.geom));
 
-    -- Step 4 (L3: Seq Scan) --
-    -- Output Table: temp_xvamoeuc
-    CREATE TEMPORARY TABLE temp_xvamoeuc AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Point'::text));
+# -- Step 4 (L3: Seq Scan) --
+# -- Output Table: temp_xzuxtkbi
+# CREATE TEMPORARY TABLE temp_xzuxtkbi AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Point'::text));
 
-    -- Step 5 (L2: Nested Loop) --
-    -- Output Table: temp_jiqrgprf
-    CREATE TEMPORARY TABLE temp_jiqrgprf AS (SELECT * FROM temp_yimcnlzg AS t2 INNER JOIN temp_xvamoeuc AS t_final ON st_within(t_final.geom, t2.geom));
+# -- Step 5 (L2: Nested Loop) --
+# -- Output Table: temp_qbkrxylk
+# CREATE TEMPORARY TABLE temp_qbkrxylk AS (SELECT * FROM temp_kwoqcltv AS t2 INNER JOIN temp_xzuxtkbi AS t_final ON st_within(t_final.geom, t2.geom));
 
-    -- Step 6 (L1: Sort) --
-    -- Output Table: temp_jxjtjuwd
-    CREATE TEMPORARY TABLE temp_jxjtjuwd AS (SELECT * FROM temp_jiqrgprf AS t_final ORDER BY t_final.id);
+# -- Step 6 (L1: Sort) --
+# -- Output Table: temp_uuorwvla
+# CREATE TEMPORARY TABLE temp_uuorwvla AS (SELECT * FROM temp_qbkrxylk AS t_final ORDER BY t_final.id);
 
-    -- Step 7 (L0: Unique) --
-    -- Output Table: temp_uxdbsfqx
-    CREATE TEMPORARY TABLE temp_uxdbsfqx AS (SELECT * FROM (unknown_operation: Unique));
+# -- Step 7 (L0: Unique) --
+# -- Output Table: temp_wlakzeyw
+# CREATE TEMPORARY TABLE temp_wlakzeyw AS (SELECT * FROM (unknown_operation: Unique));
 
-    --- Final Query (Root Node) ---
-    The final result: temp_vzgioibc
-    """
+# --- Final Query (Root Node) ---
+# The final result is in table: temp_wlakzeyw
+# (Run 'SELECT * FROM temp_wlakzeyw;' to see results)
+# """
 
     visualizer = StatefulSqlVisualizer(DB_URL)
     visualizer.add_stages_from_text(SQL_STEPS_TEXT)

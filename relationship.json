@@ -2,56 +2,45 @@
     "relationships": [
         [
             [
-                "POLYGON",
-                2
+                "Polygon",
+                "P1"
             ],
             [
-                "POLYGON",
-                0
-            ],
-            "within"
-        ],
-        [
-            [
-                "LINE",
-                0
-            ],
-            [
-                "POLYGON",
-                2
+                "Polygon",
+                "P2"
             ],
             "within"
         ],
         [
             [
-                "POINT",
-                3
+                "Line",
+                "L0"
             ],
             [
-                "POLYGON",
-                1
-            ],
-            "within"
-        ],
-        [
-            [
-                "POINT",
-                6
-            ],
-            [
-                "POLYGON",
-                0
+                "Polygon",
+                "P1"
             ],
             "within"
         ],
         [
             [
-                "POINT",
-                7
+                "Point",
+                "Pt0"
             ],
             [
-                "POLYGON",
-                0
+                "Polygon",
+                "P1"
+            ],
+            "within"
+        ],
+        [
+            [
+                "Point",
+                "Pt5"
+            ],
+            [
+                "Polygon",
+                "P2"
             ],
             "within"
         ]

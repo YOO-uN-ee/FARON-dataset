@@ -1,6 +1,7 @@
 # plan_node.py
 import random
 import string
+import re
 
 class PlanNode:
     """
@@ -36,6 +37,8 @@ class PlanNode:
         # --- NEW Properties for SQL Generation ---
         # The alias this node's output will be known by (for joins)
         self.alias_name = self.alias or self.relation_name
+        self.temp_table_name = None 
+        self.operation_sql = None
         
         # These will be set by the parser during traversal
         self.temp_table_name = None 
@@ -51,8 +54,51 @@ class PlanNode:
         # If this node is a wrapper (like Sort or Materialize)
         # and has no alias, it "inherits" the alias from its child
         # so a parent join knows what to call it.
-        if not self.alias_name and self.children:
-            self.alias_name = self.children[0].alias_name
+        self.contained_aliases = set()
+        if self.alias_name:
+            self.contained_aliases.add(self.alias_name)
+            
+        # 2. Inherit aliases from children
+        if self.children:
+            # If this is a wrapper (Sort, Materialize) and has no alias, take the child's
+            if not self.alias_name:
+                self.alias_name = self.children[0].alias_name
+            
+            # Aggregate all aliases found in children
+            for child in self.children:
+                self.contained_aliases.update(child.contained_aliases)
+
+        # if not self.alias_name and self.children:
+        #     self.alias_name = self.children[0].alias_name
+
+    def _adjust_identifiers(self, sql_fragment, child_node, child_alias_in_query):
+        """
+        Replaces references to original aliases (e.g., 't1.id') within the sql_fragment
+        with the alias used in the current SELECT statement (e.g., 'sub_q.id').
+        
+        Args:
+            sql_fragment (str): The raw SQL condition (e.g. "t1.id = t2.id")
+            child_node (PlanNode): The child node providing the data.
+            child_alias_in_query (str): The alias we are giving this child in the FROM clause.
+        """
+        if not sql_fragment:
+            return None
+            
+        adjusted_sql = sql_fragment
+        
+        # We need to map every alias contained deep inside the child 
+        # to the single alias exposed in the current FROM clause.
+        for buried_alias in child_node.contained_aliases:
+            if buried_alias == child_alias_in_query:
+                continue
+                
+            # Regex to match "buried_alias" followed by a dot, ensuring whole word match.
+            # e.g. matches "t1." in "t1.id" but not in "table_t1.id"
+            pattern = r'\b' + re.escape(buried_alias) + r'\.'
+            replacement = f"{child_alias_in_query}."
+            adjusted_sql = re.sub(pattern, replacement, adjusted_sql)
+            
+        return adjusted_sql
 
     def _generate_select_sql(self) -> str | None:
         """
@@ -101,22 +147,35 @@ class PlanNode:
             return f"-- (Error: Node {node_type} has no children)"
 
         # Get the temp table of the *first* child (for Sort, Agg, etc.)
-        child_table = self.children[0].temp_table_name
+        # child_table = self.children[0].temp_table_name
+        child = self.children[0]
+        child_from_clause = f"{child.temp_table_name} AS {child.alias_name}"
 
         if node_type == "Sort":
-            return f"SELECT * FROM {child_table} ORDER BY {', '.join(self.sort_key)}"
+            # Adjust sort key to ensure it uses the alias we just set
+            sort_keys_fixed = [
+                self._adjust_identifiers(k, child, child.alias_name) 
+                for k in self.sort_key
+            ]
+            return f"SELECT * FROM {child_from_clause} ORDER BY {', '.join(sort_keys_fixed)}"
 
         if node_type == "Materialize":
-            # A "Materialize" node is just a cache.
-            # We create a new temp table by selecting from its child's temp table.
-            return f"SELECT * FROM {child_table}"
+            return f"SELECT * FROM {child_from_clause}"
             
         if node_type in ("Agg", "HashAgg", "GroupAgg"):
-             # This is a simplification; we're not parsing the 'Output' list
-            sql = f"SELECT * FROM {child_table}"
+            sql = f"SELECT * FROM {child_from_clause}"
             if self.group_key:
-                sql += f" GROUP BY {', '.join(self.group_key)}"
+                fixed_keys = [
+                    self._adjust_identifiers(k, child, child.alias_name) 
+                    for k in self.group_key
+                ]
+                sql += f" GROUP BY {', '.join(fixed_keys)}"
             return sql
+            
+        if node_type == "Limit":
+            # Simple pass-through wrapper (often doesn't appear as a separate node in basic JSON, 
+            # but if it does, it needs the alias too)
+            return f"SELECT * FROM {child_from_clause}"
 
         # --- Join Operations (on two children) ---
         if node_type in ("Hash Join", "Nested Loop", "Merge Join"):
@@ -135,9 +194,21 @@ class PlanNode:
             if node_type == "Hash Join": cond = self.hash_condition
             elif node_type == "Merge Join": cond = self.merge_condition
             elif node_type == "Nested Loop": cond = self.join_condition or self.join_filter
+
+            fixed_cond = cond
+            fixed_cond = self._adjust_identifiers(fixed_cond, child1, child1.alias_name)
+            fixed_cond = self._adjust_identifiers(fixed_cond, child2, child2.alias_name)
+
+            join_extra_filter = ""
+            if self.filter:
+                fixed_filter = self.filter
+                fixed_filter = self._adjust_identifiers(fixed_filter, child1, child1.alias_name)
+                fixed_filter = self._adjust_identifiers(fixed_filter, child2, child2.alias_name)
+                join_extra_filter = f" WHERE {fixed_filter}"
             
             # Return the full SELECT statement for the join
-            return f"SELECT * FROM {tbl1} {self.join_type.upper()} JOIN {tbl2} ON {cond}"
+            # return f"SELECT * FROM {tbl1} {self.join_type.upper()} JOIN {tbl2} ON {cond}"
+            return f"SELECT * FROM {tbl1} {self.join_type.upper()} JOIN {tbl2} ON {fixed_cond}{join_extra_filter}"
 
         # Default fallback for unhandled node types
         return f"SELECT * FROM (unknown_operation: {self.node_type})"
