@@ -29,7 +29,7 @@ Your goal is to describe database actions in simple, human commands.
 1. **FOCUS ON INTENT:** Look at the 'WHERE' clauses and 'JOIN' conditions to understand what is being filtered or connected.
 2. **IGNORE BOILERPLATE:** Do NOT mention "creating temporary tables", "index scans", "sequences", or "selecting columns". 
 3. **USE NATURAL VERBS:** Start sentences with "Find", "Select", "Filter", or "Identify".
-4. **HANDLE SPATIAL LOGIC:** - `st_within(A, B)` -> "Find A that is inside B"
+4. **HANDLE SPATIAL LOGIC:** - `st_within(A, B)` -> "Find A that is within B"
    - `geom_type = 'Polygon'` -> "polygons"
    - `geom_type = 'Point'` -> "points"
 
@@ -38,12 +38,12 @@ Input: CREATE TEMP TABLE x AS SELECT * FROM data WHERE id = 'P1'
 Output: Find the item with ID 'P1'.
 
 Input: SELECT * FROM t1 JOIN t2 ON st_within(t1.geom, t2.geom)
-Output: Find which items from the previous step are inside the area found in step 2.
+Output: Find which items from the previous step are within the area found in step 2.
 """
 
 # 3. Construct the Prompt
 messages = [
-    {"role": "system", "content": "You are a SQL to Natural Language translator. Summarize each step briefly. interpreting spatial functions like 'st_within' as 'inside'. Trace the temporary tables to explain the data flow."},
+    {"role": "system", "content": system_prompt},
     {"role": "user", "content": f"Translate these steps into a numbered list of natural language actions:\n\n{sql_text}"},
 ]
 
@@ -52,7 +52,7 @@ outputs = pipe(
     messages,
     max_new_tokens=512,
     do_sample=True,
-    temperature=0.1, # Keep low for factual accuracy
+    temperature=0.01, # Keep low for factual accuracy
 )
 
 print(outputs[0]["generated_text"][-1]['content'])
