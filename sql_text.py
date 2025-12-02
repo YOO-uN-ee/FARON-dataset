@@ -48,8 +48,8 @@ Your goal is to rewrite the Reasoning Plan using the specific data found in the 
 *SQL Log:* Step 3 Output: P1. Step 5 Output: Pt5.
 *Output:*
 1. Find P2.
-2. Find polygons that border P2 (identified as **P1**).
-3. Find points that are within **P1**.
+2. Find polygons that border P2.
+3. Find points that are within P1.
 """
 
 # Format input as a single prompt block
