@@ -13,48 +13,57 @@ pipe = pipeline(
     device_map="auto",
 )
 
-# 2. Your Raw Input
+# --- INPUT DATA ---
+
+with open('border1/question_detail.json', 'r') as file:
+    question_data = json.load(file)
+
 with open('border1/execution_io.txt', 'r') as f:
-    sql_text = f.read()
+    sql_log_raw = f.read()
 
-
+# Helper to clean log (keep Output lines, remove technical headers)
 def clean_log(text):
-    # Remove lines about Input, Table names, or Scan types to reduce noise
     text = re.sub(r'-- Output Table: .*', '', text)
-    text = re.sub(r'-- Input: .*', '', text) 
-    # Keep "-- Output: ..." lines as they are crucial for your naming requirement
+    text = re.sub(r'-- Input: .*', '', text)
     return text
 
-cleaned_text = clean_log(sql_text)
+cleaned_sql = clean_log(sql_log_raw)
 
-# 2. The Prompt
+# --- THE SYSTEM PROMPT ---
 system_prompt = """
-Convert the SQL logs into a natural chain of events.
+You are a Logic Synthesizer. You are given a "Reasoning Plan" (the intent) and a "SQL Execution Log" (the actual results).
+Your goal is to rewrite the Reasoning Plan using the specific data found in the Log.
 
-**PROCEDURE FOR EACH STEP:**
-1.  **Decide to Speak or Skip:**
-    * **SKIP** generic "Seq Scans" that just load all data (e.g. "Get all Polygons").
-    * **SPEAK** if the step filters by a specific ID (e.g., 'P3') or performs a JOIN.
+**ALGORITHM:**
+1. **Initialize:** Start by stating the object found in the first SQL Step (usually the anchor, e.g., "Find P2").
+2. **Map Steps:** Match each step in the "Reasoning Plan" to the corresponding "Active Step" in the SQL Log. 
+   - (Note: Ignore SQL steps that just scan tables; look for the JOINs).
+3. **Substitute Variables:** - Look at the `reasoning`: "Find points... matching results from Step 1".
+   - Look at the `SQL Log` for that step: Find the line `-- Output: [VALUES]`.
+   - **CRITICAL:** Replace "results from Step 1" with the specific values found (e.g., "P1").
+4. **Format:** Output a concise numbered list. Use the verbs from the Reasoning (e.g., "borders", "within") but the nouns from the SQL Log.
 
-2.  **Determine the "Active Subject":**
-    * Look at the temporary table being used. Find the `-- Output:` comment associated with that table in the previous steps.
-    * *Example:* If Step 5 uses the table from Step 3, and Step 3 had `-- Output: P0`, then the subject is **P0**.
+**EXAMPLE:**
+*Reasoning:* Find polygons bordering P2. Find points within those polygons.
+*SQL Log:* Step 3 Output: P1. Step 5 Output: Pt5.
+*Output:*
+1. Find P2.
+2. Find polygons that border P2 (identified as **P1**).
+3. Find points that are within **P1**.
+"""
 
-3.  **Construct the Sentence:**
-    * **Start:** "Find the [Geometry Type] [ID]..."
-    * **Chained Action:** "Find [Target Type] that are [Relation] [Active Subject]..."
+# Format input as a single prompt block
+user_content = f"""
+**Reasoning Plan:**
+{json.dumps(question_data['reasoning'], indent=2)}
 
-4.  **Translate Relations:**
-    * `st_covers(A, B)` -> B is inside A
-    * `st_within(A, B)` -> A is inside B
-
-**OUTPUT STYLE:**
-Produce a numbered list. Be concise. Do not explain the code, just the data flow.
+**SQL Execution Log:**
+{cleaned_sql}
 """
 
 messages = [
     {"role": "system", "content": system_prompt},
-    {"role": "user", "content": f"Trace the data flow in this log:\n\n{cleaned_text}"},
+    {"role": "user", "content": user_content},
 ]
 
 outputs = pipe(
