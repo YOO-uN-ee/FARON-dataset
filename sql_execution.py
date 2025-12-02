@@ -395,7 +395,7 @@ class StatefulSqlVisualizer:
 
         os.makedirs(output_dir, exist_ok=True)
         
-        print("\n=== EXECUTION LOG ===\n", file=write_file)
+        print("--- SQL Steps in Execution Order ---\n", file=write_file)
 
         for i, stage in enumerate(self.stages):
             name = stage["name"]
