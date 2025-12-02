@@ -29,30 +29,32 @@ cleaned_text = clean_log(sql_text)
 
 # 2. The Prompt
 system_prompt = """
-You are a SQL Execution Narrator. Convert the log into a numbered list of actions.
+Convert the SQL logs into a natural chain of events.
 
-**RULES:**
-1. **FILTERING (IGNORE):** - IGNORE steps that just "Get all Polygons" or "Get all Points" (Seq Scans without ID filters).
-   - ONLY report steps that filter by a specific ID (e.g., 'P3') or perform a JOIN.
+**PROCEDURE FOR EACH STEP:**
+1.  **Decide to Speak or Skip:**
+    * **SKIP** generic "Seq Scans" that just load all data (e.g. "Get all Polygons").
+    * **SPEAK** if the step filters by a specific ID (e.g., 'P3') or performs a JOIN.
 
-2. **NAMING (CRITICAL):**
-   - Look at the `-- Output:` comment in the log.
-   - When describing a step, use the **Output name** from the *previous* relevant step.
-   - Example: If Step 3 Output is 'P0', then in Step 5 say "Find points within **P0**" instead of "Find points within the result of step 3".
+2.  **Determine the "Active Subject":**
+    * Look at the temporary table being used. Find the `-- Output:` comment associated with that table in the previous steps.
+    * *Example:* If Step 5 uses the table from Step 3, and Step 3 had `-- Output: P0`, then the subject is **P0**.
 
-3. **SPATIAL LOGIC:**
-   - `st_covers(A, B)` -> "Find [B] that are within [A]"
-   - `st_within(A, B)` -> "Find [A] that are within [B]"
+3.  **Construct the Sentence:**
+    * **Start:** "Find the [Geometry Type] [ID]..."
+    * **Chained Action:** "Find [Target Type] that are [Relation] [Active Subject]..."
 
-**DESIRED FORMAT:**
-1. Find the polygon with [ID]
-2. Identify the polygons that are within [ID]
-3. Find all points that are within [Result of Step 2]
+4.  **Translate Relations:**
+    * `st_covers(A, B)` -> B is inside A
+    * `st_within(A, B)` -> A is inside B
+
+**OUTPUT STYLE:**
+Produce a numbered list. Be concise. Do not explain the code, just the data flow.
 """
 
 messages = [
     {"role": "system", "content": system_prompt},
-    {"role": "user", "content": f"Translate this execution log based on the rules:\n\n{cleaned_text}"},
+    {"role": "user", "content": f"Trace the data flow in this log:\n\n{cleaned_text}"},
 ]
 
 outputs = pipe(
