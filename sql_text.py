@@ -21,6 +21,15 @@ with open('border1/question_detail.json', 'r') as file:
 with open('border1/execution_io.txt', 'r') as f:
     sql_log_raw = f.read()
 
+def get_final_output(log_text):
+    # Find all occurrences of "-- Output: [Value]"
+    matches = re.findall(r'-- Output:\s*(.*)', log_text)
+    if matches:
+        return matches[-1].strip() # Return the last one found
+    return "No Output Found"
+
+final_answer = get_final_output(sql_log_raw)
+
 # Helper to clean log (keep Output lines, remove technical headers)
 def clean_log(text):
     text = re.sub(r'-- Output Table: .*', '', text)
@@ -78,3 +87,5 @@ outputs = pipe(
 
 with open('border1/natural_text.txt', 'w') as f:
     print(outputs[0]["generated_text"][-1]['content'], file=f)
+
+    print(f"Final Answer: {final_answer}")
