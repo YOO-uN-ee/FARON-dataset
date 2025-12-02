@@ -76,4 +76,5 @@ outputs = pipe(
     temperature=0.1,
 )
 
-print(outputs[0]["generated_text"][-1]['content'])
+with open('border1/natural_text.txt', 'w') as f:
+    print(outputs[0]["generated_text"][-1]['content'], file=f)
