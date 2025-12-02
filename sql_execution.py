@@ -489,7 +489,7 @@ if __name__ == "__main__":
     DB_URL = URL.create("postgresql+psycopg2", username="postgres", password="jiYOON7162@", host="localhost", port=5432, database="postgres")
     CANVAS_BOUNDS = (0, 0, 100, 100)
     
-    filename = 'execution.txt'
+    filename = 'within1/execution.txt'
     try:
         print(f"Reading SQL steps from {filename}...")
         with open(filename, 'r') as f:
@@ -503,6 +503,6 @@ if __name__ == "__main__":
     visualizer = StatefulSqlVisualizer(DB_URL)
     visualizer.add_stages_from_text(SQL_STEPS_TEXT)
 
-    with open('execution_io.txt', 'w') as f:
+    with open('within1/execution_io.txt', 'w') as f:
         visualizer.run_and_plot_stages(write_file=f, output_dir="traces", total_bounds=CANVAS_BOUNDS)
     visualizer.close()
