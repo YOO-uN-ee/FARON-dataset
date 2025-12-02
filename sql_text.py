@@ -14,7 +14,7 @@ pipe = pipeline(
 )
 
 # 2. Your Raw Input
-with open('execution_io.txt', 'r') as f:
+with open('border1/execution_io.txt', 'r') as f:
     sql_text = f.read()
 
 

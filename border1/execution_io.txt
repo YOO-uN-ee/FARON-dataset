@@ -15,7 +15,7 @@ CREATE TEMPORARY TABLE temp_jehujczr AS (SELECT * FROM public.generated_geometri
 -- Step 3 (L1: Nested Loop) --
 -- Output Table: temp_fjgozmjv
 -- Input: P0, P1, P2, P3
--- Output: P0, P1, P3
+-- Output: P1
 CREATE TEMPORARY TABLE temp_fjgozmjv AS (SELECT * FROM temp_izgerddm AS t_target INNER JOIN temp_jehujczr AS t_bridge ON (((t_bridge.id)::text <> (t_target.id)::text) AND st_dwithin(t_bridge.geom, t_target.geom, '1'::double precision)));
 
 -- Step 4 (L1: Seq Scan) --
@@ -27,6 +27,6 @@ CREATE TEMPORARY TABLE temp_kqxitepi AS (SELECT * FROM public.generated_geometri
 -- Step 5 (L0: Nested Loop) --
 -- Output Table: temp_kynceudo
 -- Input: P0, P1, P3, Pt0, Pt1, Pt2, Pt3, Pt4, Pt5, Pt6, Pt7, Pt8, Pt9
--- Output: Pt0, Pt1, Pt3, Pt5, Pt7
+-- Output: Pt5
 CREATE TEMPORARY TABLE temp_kynceudo AS (SELECT * FROM temp_fjgozmjv AS t_target INNER JOIN temp_kqxitepi AS t_final ON (((t_final.id)::text <> (t_target.id)::text) AND st_covers(t_target.geom, t_final.geom)));
 
