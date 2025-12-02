@@ -61,6 +61,8 @@ user_content = f"""
 {cleaned_sql}
 """
 
+print(user_content)
+
 messages = [
     {"role": "system", "content": system_prompt},
     {"role": "user", "content": user_content},
