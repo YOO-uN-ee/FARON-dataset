@@ -1,25 +1,33 @@
---- SQL Steps in Execution Order ---
+
+=== EXECUTION LOG ===
 
 -- Step 1 (L2: Index Scan) --
 -- Output Table: temp_hkxgfdui
+-- Input: None (Base Table Scan)
+-- Output: P3
 CREATE TEMPORARY TABLE temp_hkxgfdui AS (SELECT * FROM public.generated_geometries WHERE ((id)::text = 'P3'::text) AND (((geom_type)::text = 'Polygon'::text)));
 
 -- Step 2 (L2: Seq Scan) --
 -- Output Table: temp_bxhaeesk
+-- Input: None (Base Table Scan)
+-- Output: P0, P1, P2, P3
 CREATE TEMPORARY TABLE temp_bxhaeesk AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
 
 -- Step 3 (L1: Nested Loop) --
 -- Output Table: temp_axpjldoi
+-- Input: P0, P1, P2, P3
+-- Output: P0
 CREATE TEMPORARY TABLE temp_axpjldoi AS (SELECT * FROM temp_hkxgfdui AS t_target INNER JOIN temp_bxhaeesk AS t_bridge ON (((t_bridge.id)::text <> (t_target.id)::text) AND st_covers(t_target.geom, t_bridge.geom)));
 
 -- Step 4 (L1: Seq Scan) --
 -- Output Table: temp_fgkyvldh
+-- Input: None (Base Table Scan)
+-- Output: Pt0, Pt1, Pt2, Pt3, Pt4, Pt5, Pt6, Pt7, Pt8, Pt9
 CREATE TEMPORARY TABLE temp_fgkyvldh AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Point'::text));
 
 -- Step 5 (L0: Nested Loop) --
 -- Output Table: temp_btrpkdpx
+-- Input: P0, Pt0, Pt1, Pt2, Pt3, Pt4, Pt5, Pt6, Pt7, Pt8, Pt9
+-- Output: Pt3, Pt7
 CREATE TEMPORARY TABLE temp_btrpkdpx AS (SELECT * FROM temp_axpjldoi AS t_target INNER JOIN temp_fgkyvldh AS t_final ON (((t_final.id)::text <> (t_target.id)::text) AND st_covers(t_target.geom, t_final.geom)));
 
---- Final Query (Root Node) ---
-The final result is in table: temp_btrpkdpx
-(Run 'SELECT * FROM temp_btrpkdpx;' to see results)

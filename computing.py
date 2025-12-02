@@ -8,22 +8,29 @@ def generate_spatial_question_from_data_with_postgis(
     table_name="geometries",
     name_col="name", 
     geom_col="geom",
-    geom_type_col="geom_type" 
+    geom_type_col="geom_type",
+    tolerance=1.0 # Allow 1 unit (pixel/meter) gap for "aligned"
 ):
     """
-    Generates a data-driven multi-step question and its PostGIS SQL.
-    Includes logic to exclude self-referencing results (e.g., P1 within P1).
+    Generates a question/SQL pair using robust spatial predicates 
+    (ST_Covers instead of ST_Within, ST_DWithin instead of ST_Touches).
     """
     
+    # --- 1. ROBUST SQL MAPPINGS ---
+    # ST_Covers: Returns TRUE even if the point is on the boundary line (ST_Within returns FALSE there).
+    # ST_DWithin: Returns TRUE if geometries are within 'tolerance' distance (handles gaps).
     sql_functions = {
-        "within": "ST_Within({A}, {B})",
-        "contain": "ST_Contains({A}, {B})",
+        "within": "ST_Covers({B}, {A})", # Note: ST_Covers(Polygon, Point) -> Polygon covers Point
+        "contain": "ST_Covers({A}, {B})",
         "overlap": "ST_Overlaps({A}, {B})",
         "intersect": "ST_Intersects({A}, {B})",
         "disjoint": "ST_Disjoint({A}, {B})",
-        "crosses": "ST_Crosses({A}, {B})"
+        "crosses": "ST_Crosses({A}, {B})",
+        "borders": f"ST_DWithin({{A}}, {{B}}, {tolerance})" # Fuzzy matching for borders
     }
     
+    SYMMETRIC_RELATIONS = ["borders", "intersect", "overlap", "disjoint", "crosses", "touches"]
+
     # --- Pre-process data ---
     relations_of_a = defaultdict(list)
     relations_of_b = defaultdict(list)
@@ -32,16 +39,25 @@ def generate_spatial_question_from_data_with_postgis(
         if rel in sql_functions:
             a_key = (a_info[0], a_info[1]) 
             b_key = (b_info[0], b_info[1])
+            
             relations_of_a[a_key].append((b_key, rel))
             relations_of_b[b_key].append((a_key, rel))
+
+            if rel in SYMMETRIC_RELATIONS:
+                relations_of_a[b_key].append((a_key, rel))
+                relations_of_b[a_key].append((b_key, rel))
 
     # --- Template 1: Chained Relationship ---
     def template_chained_relationship(template_data):
         possible_b_keys = list(set(relations_of_a.keys()) & set(relations_of_b.keys()))
-        if not possible_b_keys:
-            return None 
+        if not possible_b_keys: return None 
 
+        random.shuffle(possible_b_keys)
         entity_b_key = random.choice(possible_b_keys)
+        
+        # Ensure valid links exist
+        if not relations_of_b[entity_b_key] or not relations_of_a[entity_b_key]: return None
+
         entity_a_key, rel_1_name = random.choice(relations_of_b[entity_b_key])
         entity_c_key, rel_2_name = random.choice(relations_of_a[entity_b_key])
         
@@ -49,50 +65,49 @@ def generate_spatial_question_from_data_with_postgis(
         type_b, id_b = entity_b_key
         type_c, id_c = entity_c_key
 
+        if id_a == id_c: return None
+
         rel_1_sql = template_data['sql_functions'][rel_1_name]
         rel_2_sql = template_data['sql_functions'][rel_2_name]
-
+        
         entity_c_str = f"{id_c}"
-        question = (
-            f"Which {type_a}s in the image is {rel_1_name} a {type_b} "
-            f"that is {rel_2_name} {entity_c_str}?"
-        )
+        question = f"Which {type_a}s in the image are {rel_1_name} a {type_b} that is {rel_2_name} with {entity_c_str}?"
+        
+        # Cleanup Text
+        question = question.replace("is borders with", "borders") 
+        question = question.replace("is within", "are within")
 
         reasoning = [
-            f"Step 1: Find all `{type_b}` geometries that `{rel_2_name}` {entity_c_str} (excluding {entity_c_str} itself).",
-            f"Step 2: Find all `{type_a}` geometries that `{rel_1_name}` the results from Step 1.",
-            "Step 3: Return the distinct names/IDs."
+            f"Step 1: Find `{type_b}` geometries that match `{rel_2_name}` with {entity_c_str}.",
+            f"Step 2: Find `{type_a}` geometries that match `{rel_1_name}` with the results from Step 1.",
         ]
         
-        # SQL UPDATE: Added 'AND T1.{name_col} <> T2.{name_col}' to exclude self-matches
-        # Note: We also pull the ID in the CTE now to ensure we can exclude self-matches in the final step if needed,
-        # though strictly speaking, simply preventing T2 matches in the Join is often enough. 
-        # For simplicity, this version enforces the exclusion on the explicit relationship steps.
-
+        # --- SQL FIX: Robust JOINs ---
+        # 1. We use ST_Covers instead of ST_Within to catch boundary cases.
+        # 2. We use ST_DWithin for alignment to catch gap cases.
+        # 3. We filter T_Bridge.name <> T_Target.name to avoid self-matches.
+        
         sql = f"""
-WITH IntermediateSet AS (
-    SELECT T1.{template_data['geom_col']}
-    FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
-    WHERE
-        T1.{template_data['geom_type_col']} = '{type_b}'
-        AND T2.{template_data['name_col']} = '{id_c}'
-        AND T2.{template_data['geom_type_col']} = '{type_c}'
-        AND T1.{template_data['name_col']} <> T2.{template_data['name_col']} 
-        AND {rel_2_sql.format(A='T1.' + template_data['geom_col'], B='T2.' + template_data['geom_col'])}
-)
-SELECT DISTINCT T_Final.{template_data['name_col']}
-FROM {template_data['table_name']} AS T_Final, IntermediateSet
+SELECT T_Final.{template_data['name_col']}
+FROM {template_data['table_name']} AS T_Final
+JOIN {template_data['table_name']} AS T_Bridge 
+  ON {rel_1_sql.format(A='T_Final.' + template_data['geom_col'], B='T_Bridge.' + template_data['geom_col'])}
+JOIN {template_data['table_name']} AS T_Target 
+  ON {rel_2_sql.format(A='T_Bridge.' + template_data['geom_col'], B='T_Target.' + template_data['geom_col'])}
 WHERE
     T_Final.{template_data['geom_type_col']} = '{type_a}'
-    AND {rel_1_sql.format(A='T_Final.' + template_data['geom_col'], B='IntermediateSet.' + template_data['geom_col'])};
-        """
+    AND T_Bridge.{template_data['geom_type_col']} = '{type_b}'
+    AND T_Target.{template_data['name_col']} = '{id_c}'
+    AND T_Target.{template_data['geom_type_col']} = '{type_c}'
+    AND T_Bridge.{template_data['name_col']} <> T_Target.{template_data['name_col']}
+    AND T_Final.{template_data['name_col']} <> T_Bridge.{template_data['name_col']};
+"""
         return {"question": question, "reasoning": reasoning, "sql": sql}
 
-    # --- Template 2: Multiple Conditions ---
+    # --- Template 2: Multiple Conditions (Intersection) ---
     def template_multiple_conditions(template_data):
         possible_a_keys = [a for a, rels in template_data['relations_of_a'].items() if len(rels) >= 2]
-        if not possible_a_keys:
-            return None
+        if not possible_a_keys: return None
             
         entity_a_key = random.choice(possible_a_keys)
         (entity_b_key, rel_1_name), (entity_c_key, rel_2_name) = random.sample(
@@ -106,41 +121,26 @@ WHERE
         rel_1_sql = template_data['sql_functions'][rel_1_name]
         rel_2_sql = template_data['sql_functions'][rel_2_name]
 
-        entity_b_str = f"{id_b}"
-        entity_c_str = f"{id_c}"
-        question = (
-            f"Find all {type_a}s that both "
-            f"{rel_1_name} {entity_b_str} and "
-            f"{rel_2_name} {entity_c_str}."
-        )
+        question = f"Find all {type_a}s that both {rel_1_name} {id_b} and {rel_2_name} {id_c}."
 
         reasoning = [
-            f"Step 1: Find `{type_a}`s that `{rel_1_name}` {entity_b_str} (excluding self).",
-            f"Step 2: Find `{type_a}`s that `{rel_2_name}` {entity_c_str} (excluding self).",
-            "Step 3: Find the intersection."
+            f"Step 1: Find `{type_a}`s that `{rel_1_name}` {id_b}.",
+            f"Step 2: Find `{type_a}`s that `{rel_2_name}` {id_c}.",
+            "Step 3: Return the intersection of these two sets."
         ]
 
-        # SQL UPDATE: Added 'AND T1.{name_col} <> T2.{name_col}' to both subqueries
+        # Use Standard JOINs combined with AND logic (often faster and cleaner than INTERSECT for simple IDs)
         sql = f"""
 SELECT T1.{template_data['name_col']}
-FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
+FROM {template_data['table_name']} AS T1
+JOIN {template_data['table_name']} AS T2 ON {rel_1_sql.format(A='T1.' + template_data['geom_col'], B='T2.' + template_data['geom_col'])}
+JOIN {template_data['table_name']} AS T3 ON {rel_2_sql.format(A='T1.' + template_data['geom_col'], B='T3.' + template_data['geom_col'])}
 WHERE
     T1.{template_data['geom_type_col']} = '{type_a}'
     AND T2.{template_data['name_col']} = '{id_b}'
-    AND T2.{template_data['geom_type_col']} = '{type_b}'
-    AND T1.{template_data['name_col']} <> T2.{template_data['name_col']} 
-    AND {rel_1_sql.format(A='T1.' + template_data['geom_col'], B='T2.' + template_data['geom_col'])}
-
-INTERSECT
-
-SELECT T1.{template_data['name_col']}
-FROM {template_data['table_name']} AS T1, {template_data['table_name']} AS T2
-WHERE
-    T1.{template_data['geom_type_col']} = '{type_a}'
-    AND T2.{template_data['name_col']} = '{id_c}'
-    AND T2.{template_data['geom_type_col']} = '{type_c}'
-    AND T1.{template_data['name_col']} <> T2.{template_data['name_col']} 
-    AND {rel_2_sql.format(A='T1.' + template_data['geom_col'], B='T2.' + template_data['geom_col'])};
+    AND T3.{template_data['name_col']} = '{id_c}'
+    AND T1.{template_data['name_col']} <> T2.{template_data['name_col']}
+    AND T1.{template_data['name_col']} <> T3.{template_data['name_col']};
         """
         return {"question": question, "reasoning": reasoning, "sql": sql}
 
@@ -162,11 +162,18 @@ WHERE
         possible_templates.append(template_chained_relationship)
 
     if not possible_templates:
-        return {"error": "Could not find any multi-step patterns in the provided data."}
+        return {"error": "No multi-step patterns found."}
 
-    chosen_template = random.choice(possible_templates)
-    result = chosen_template(template_data)
-    
+    # Retry logic
+    result = None
+    for _ in range(20): 
+        chosen_template = random.choice(possible_templates)
+        result = chosen_template(template_data)
+        if result: break
+            
+    if not result:
+        return {"error": "Logic failed to generate a valid question."}
+
     if result and 'sql' in result:
         result['sql'] = "\n".join(
             [Line.strip() for Line in result['sql'].strip().split('\n') if Line.strip()]

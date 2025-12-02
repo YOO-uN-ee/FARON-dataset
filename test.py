@@ -180,7 +180,6 @@ def get_random_point_in_polygon(poly):
         if poly.contains(p):
             return p
 
-# vvv MODIFIED FUNCTION vvv
 def create_aligned_edges(polygons, indices_to_use, relationships_list):
     """Adjusts specified polygon pairs to share a boundary line."""
     modified_polygons = polygons[:]
@@ -223,7 +222,7 @@ def create_aligned_edges(polygons, indices_to_use, relationships_list):
                 modified_polygons[idx_b] = final_poly_b
                 pair_aligned = True
                 # --- MODIFIED RELATIONSHIP ---
-                relationships_list.append([["Polygon", f"P{idx_a}"], ["Polygon", f"P{idx_b}"], "aligned"])
+                relationships_list.append([["Polygon", f"P{idx_a}"], ["Polygon", f"P{idx_b}"], "borders"])
                 # ---
                 break
         
@@ -775,14 +774,14 @@ if __name__ == '__main__':
     }
 
     # --- Polygon Stuff ---
-    NUM_POLYGONS = 3
+    NUM_POLYGONS = 4
     VERTEX_RANGE = (3, 6)
     RADIUS_RANGE = (10, 35)
     CREATE_REGULAR_SHAPES = False
 
     # --- Polygon Relationship Controls ---
     NUM_TOUCHING_PAIRS = 0
-    NUM_ALIGNED_PAIRS = 0
+    NUM_ALIGNED_PAIRS = 1
     NUM_OVERLAPPING_PAIRS = 0
     NUM_CONTAINED_PAIRS = 1
 
