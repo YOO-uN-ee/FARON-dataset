@@ -781,7 +781,7 @@ if __name__ == '__main__':
 
     # --- Polygon Relationship Controls ---
     NUM_TOUCHING_PAIRS = 0
-    NUM_ALIGNED_PAIRS = 1
+    NUM_ALIGNED_PAIRS = 0
     NUM_OVERLAPPING_PAIRS = 0
     NUM_CONTAINED_PAIRS = 1
 
@@ -1017,7 +1017,7 @@ if __name__ == '__main__':
 
     relationship_data = {"relationships": all_relationships}
     # print("\n--- Generated Relationships ---")
-    file_path = "relationship.json"
+    file_path = f"relationship.json"
     with open(file_path, "w") as f:
         json.dump(relationship_data, f, indent=4)
 

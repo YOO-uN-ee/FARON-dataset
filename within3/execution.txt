@@ -1,0 +1,25 @@
+--- SQL Steps in Execution Order ---
+
+-- Step 1 (L2: Index Scan) --
+-- Output Table: temp_ljdrptkb
+CREATE TEMPORARY TABLE temp_ljdrptkb AS (SELECT * FROM public.generated_geometries WHERE ((id)::text = 'P2'::text) AND (((geom_type)::text = 'Polygon'::text)));
+
+-- Step 2 (L2: Seq Scan) --
+-- Output Table: temp_pnknfcmr
+CREATE TEMPORARY TABLE temp_pnknfcmr AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Polygon'::text));
+
+-- Step 3 (L1: Nested Loop) --
+-- Output Table: temp_vyhjmeem
+CREATE TEMPORARY TABLE temp_vyhjmeem AS (SELECT * FROM temp_ljdrptkb AS t_target INNER JOIN temp_pnknfcmr AS t_bridge ON (((t_bridge.id)::text <> (t_target.id)::text) AND st_covers(t_target.geom, t_bridge.geom)));
+
+-- Step 4 (L1: Seq Scan) --
+-- Output Table: temp_xyhcsmmz
+CREATE TEMPORARY TABLE temp_xyhcsmmz AS (SELECT * FROM public.generated_geometries WHERE ((geom_type)::text = 'Point'::text));
+
+-- Step 5 (L0: Nested Loop) --
+-- Output Table: temp_wyrpolsx
+CREATE TEMPORARY TABLE temp_wyrpolsx AS (SELECT * FROM temp_vyhjmeem AS t_target INNER JOIN temp_xyhcsmmz AS t_final ON (((t_final.id)::text <> (t_target.id)::text) AND st_covers(t_target.geom, t_final.geom)));
+
+--- Final Query (Root Node) ---
+The final result is in table: temp_wyrpolsx
+(Run 'SELECT * FROM temp_wyrpolsx;' to see results)
