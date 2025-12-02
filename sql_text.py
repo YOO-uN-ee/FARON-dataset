@@ -86,6 +86,4 @@ outputs = pipe(
 )
 
 with open('border1/natural_text.txt', 'w') as f:
-    print(outputs[0]["generated_text"][-1]['content'], file=f)
-
-    print(f"Final Answer: {final_answer}")
+    print(f"{outputs[0]['generated_text'][-1]['content']}\n\n\nFinal Answer: {final_answer}", file=f)
