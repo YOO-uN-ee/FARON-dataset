@@ -1,5 +1,5 @@
 {
-    "question": "Which Points in the image are within a Polygon that is borders with P2?",
+    "question": "Which Points in the image are within a Polygon that borders P2?",
     "reasoning": [
         "Step 1: Find `Polygon` geometries that match `borders` with P2.",
         "Step 2: Find `Point` geometries that match `within` with the results from Step 1."

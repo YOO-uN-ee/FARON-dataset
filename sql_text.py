@@ -13,12 +13,14 @@ pipe = pipeline(
     device_map="auto",
 )
 
+folder = 'within3'
+
 # --- INPUT DATA ---
 
-with open('border1/question_detail.json', 'r') as file:
+with open(f'{folder}/question_detail.json', 'r') as file:
     question_data = json.load(file)
 
-with open('border1/execution_io.txt', 'r') as f:
+with open(f'{folder}/execution_io.txt', 'r') as f:
     sql_log_raw = f.read()
 
 def get_final_output(log_text):
@@ -85,5 +87,5 @@ outputs = pipe(
     temperature=0.1,
 )
 
-with open('border1/natural_text.txt', 'w') as f:
+with open(f'{folder}/natural_text.txt', 'w') as f:
     print(f"{outputs[0]['generated_text'][-1]['content']}\n\n\nFinal Answer: {final_answer}", file=f)
