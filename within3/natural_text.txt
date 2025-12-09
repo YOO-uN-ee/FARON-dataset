@@ -5,6 +5,3 @@
 3. Find points that are within P2.
 
 Note: I replaced the variables in the Reasoning Plan with the specific values found in the SQL Log.
-
-
-Final Answer: Pt3, Pt9

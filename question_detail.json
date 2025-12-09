@@ -1,0 +1,9 @@
+{
+    "question": "What is the Line that is within the Polygon that is borders P1?",
+    "reasoning": [
+        "Step 1: Locate P1.",
+        "Step 2: Find the Polygon that matches 'borders' with P1.",
+        "Step 3: Find the Line that matches 'within' with P0."
+    ],
+    "sql": "SELECT T_Final.id\nFROM generated_geometries AS T_Final\nJOIN generated_geometries AS T_Bridge ON ST_Covers(T_Bridge.geom, T_Final.geom)\nJOIN generated_geometries AS T_Seed ON ST_DWithin(T_Bridge.geom, T_Seed.geom, 1.0)\nWHERE\nT_Final.geom_type = 'Line'\nAND T_Bridge.id = 'P0'\nAND T_Seed.id = 'P1'\nAND T_Final.id <> T_Bridge.id;"
+}

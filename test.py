@@ -5,6 +5,7 @@ from shapely import affinity
 from shapely.ops import unary_union
 import matplotlib.pyplot as plt
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import json
 import matplotlib.patheffects as PathEffects
 from adjustText import adjust_text
@@ -316,155 +317,6 @@ def create_contained_pairs(polygons, indices_to_use, relationships_list):
         
     return modified_polygons
 
-# def create_touching_pairs(polygons, num_pairs):
-#     """
-#     Adjusts polygons so a specified number of pairs share a border.
-
-#     Args:
-#         polygons (list): The list of generated Shapely Polygons.
-#         num_pairs (int): The number of pairs to make touch.
-
-#     Returns:
-#         list: The modified list of polygons.
-#     """
-#     if num_pairs == 0:
-#         return polygons
-        
-#     num_polygons = len(polygons)
-#     if num_pairs * 2 > num_polygons:
-#         print(f"Warning: Cannot create {num_pairs} pairs from {num_polygons} polygons. Reducing pairs.")
-#         num_pairs = num_polygons // 2
-
-#     # Create a list of indices and shuffle it to create random pairs
-#     indices = list(range(num_polygons))
-#     random.shuffle(indices)
-
-#     modified_polygons = polygons[:] # Work on a copy
-
-#     for i in range(num_pairs):
-#         # Get indices for the stationary polygon (A) and the mobile one (B)
-#         idx_a = indices[i*2]
-#         idx_b = indices[i*2 + 1]
-
-#         poly_a = modified_polygons[idx_a]
-#         poly_b = modified_polygons[idx_b]
-
-#         # Pick a random point on the boundary of polygon A
-#         dist_a = random.uniform(0, poly_a.exterior.length)
-#         touch_point_a = poly_a.exterior.interpolate(dist_a)
-
-#         # Pick a random point on the boundary of polygon B
-#         dist_b = random.uniform(0, poly_b.exterior.length)
-#         touch_point_b = poly_b.exterior.interpolate(dist_b)
-
-#         # Calculate the translation vector to move touch_point_b to touch_point_a
-#         x_off = touch_point_a.x - touch_point_b.x
-#         y_off = touch_point_a.y - touch_point_b.y
-
-#         # Move polygon B and update it in the list
-#         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
-#         modified_polygons[idx_b] = moved_poly_b
-    
-#     return modified_polygons
-
-# def create_aligned_edges(polygons, indices_to_use):
-#     """Adjusts specified polygon pairs to share a boundary line."""
-#     modified_polygons = polygons[:]
-#     MAX_ATTEMPTS_PER_PAIR = 20
-
-#     for i in range(0, len(indices_to_use), 2):
-#         idx_a = indices_to_use[i]
-#         idx_b = indices_to_use[i+1]
-        
-#         pair_aligned = False
-#         for _ in range(MAX_ATTEMPTS_PER_PAIR):
-#             poly_a = modified_polygons[idx_a]
-#             poly_b = modified_polygons[idx_b]
-
-#             coords_a = list(poly_a.exterior.coords)
-#             edge_idx_a = random.randrange(len(coords_a) - 1)
-#             p_a1, p_a2 = Point(coords_a[edge_idx_a]), Point(coords_a[edge_idx_a + 1])
-            
-#             coords_b = list(poly_b.exterior.coords)
-#             edge_idx_b = random.randrange(len(coords_b) - 1)
-#             p_b1, p_b2 = Point(coords_b[edge_idx_b]), Point(coords_b[edge_idx_b + 1])
-
-#             angle_a = math.atan2(p_a2.y - p_a1.y, p_a2.x - p_a1.x)
-#             angle_b = math.atan2(p_b2.y - p_b1.y, p_b2.x - p_b1.x)
-            
-#             rotation_angle_rad = angle_a - angle_b + math.pi
-#             rotated_poly_b = affinity.rotate(poly_b, math.degrees(rotation_angle_rad), origin='center')
-            
-#             rotated_coords_b = list(rotated_poly_b.exterior.coords)
-#             p_b1_rot, p_b2_rot = Point(rotated_coords_b[edge_idx_b]), Point(rotated_coords_b[edge_idx_b + 1])
-#             mid_b_rot = Point((p_b1_rot.x + p_b2_rot.x) / 2, (p_b1_rot.y + p_b2_rot.y) / 2)
-            
-#             mid_a = Point((p_a1.x + p_a2.x) / 2, (p_a1.y + p_a2.y) / 2)
-            
-#             x_off = mid_a.x - mid_b_rot.x
-#             y_off = mid_a.y - mid_b_rot.y
-#             final_poly_b = affinity.translate(rotated_poly_b, xoff=x_off, yoff=y_off)
-            
-#             if not poly_a.overlaps(final_poly_b):
-#                 modified_polygons[idx_b] = final_poly_b
-#                 pair_aligned = True
-#                 break
-        
-#         if not pair_aligned:
-#             print(f"Warning: Could not align pair ({idx_a}, {idx_b}) without overlap.")
-
-#     return modified_polygons
-
-# def create_overlapping_pairs(polygons, indices_to_use):
-#     """Adjusts specified polygon pairs to partially overlap."""
-#     modified_polygons = polygons[:]
-#     for i in range(0, len(indices_to_use), 2):
-#         idx_a = indices_to_use[i]
-#         idx_b = indices_to_use[i+1]
-
-#         poly_a = modified_polygons[idx_a]
-#         poly_b = modified_polygons[idx_b]
-
-#         target_point = poly_a.centroid
-#         dist_b = random.uniform(0, poly_b.exterior.length)
-#         source_point = poly_b.exterior.interpolate(dist_b)
-        
-#         x_off = target_point.x - source_point.x
-#         y_off = target_point.y - source_point.y
-        
-#         moved_poly_b = affinity.translate(poly_b, xoff=x_off, yoff=y_off)
-#         modified_polygons[idx_b] = moved_poly_b
-        
-#     return modified_polygons
-
-# def create_contained_pairs(polygons, indices_to_use):
-#     """Adjusts specified polygon pairs so one is contained within another."""
-#     modified_polygons = polygons[:]
-#     for i in range(0, len(indices_to_use), 2):
-#         idx_1 = indices_to_use[i]
-#         idx_2 = indices_to_use[i+1]
-        
-#         if modified_polygons[idx_1].area > modified_polygons[idx_2].area:
-#             idx_a, idx_b = idx_1, idx_2 # A is container, B is contained
-#         else:
-#             idx_a, idx_b = idx_2, idx_1
-            
-#         poly_a = modified_polygons[idx_a]
-#         poly_b = modified_polygons[idx_b]
-        
-#         scale_factor = min(0.5, math.sqrt(poly_a.area / poly_b.area) * 0.5)
-#         scaled_poly_b = affinity.scale(poly_b, xfact=scale_factor, yfact=scale_factor, origin='center')
-
-#         target_point = poly_a.representative_point()
-#         source_centroid = scaled_poly_b.centroid
-#         x_off = target_point.x - source_centroid.x
-#         y_off = target_point.y - source_centroid.y
-        
-#         final_poly_b = affinity.translate(scaled_poly_b, xoff=x_off, yoff=y_off)
-#         modified_polygons[idx_b] = final_poly_b
-        
-#     return modified_polygons
-
 def move_line_into_poly(container_poly, line_to_move):
     """Moves and scales a single line to be contained within a polygon."""
     # Scale down the line to ensure it fits
@@ -708,58 +560,116 @@ def save_geometries_to_postgis(polygon_data, point_data, line_data, label_positi
             conn.close()
             print("Database connection closed.")
 
-# def save_geometries_to_postgis(polygon_data, point_data, line_data, label_positions, is_regular_polygon, db_config):
-#     """
-#     Saves geometries AND their calculated label coordinates to DB.
-#     """
-#     conn = None
-#     try:
-#         print("\nConnecting to PostGIS...")
-#         conn = psycopg2.connect(**db_config)
-#         cur = conn.cursor()
-#         cur.execute("DROP TABLE IF EXISTS generated_geometries;")
+def get_relative_location(db_config, table_name='generated_geometries'):
+    MAX_RADIUS = 100000 
 
-#         # Added label_x and label_y columns
-#         create_table_sql = """
-#         CREATE TABLE generated_geometries (
-#             id VARCHAR(20) PRIMARY KEY, 
-#             geom GEOMETRY(GEOMETRY, 0),
-#             geom_type VARCHAR(20), 
-#             style VARCHAR(20),
-#             vertices INTEGER, 
-#             area DOUBLE PRECISION,
-#             label_x DOUBLE PRECISION,
-#             label_y DOUBLE PRECISION,
-#             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#         );"""
-#         cur.execute(create_table_sql)
+    sql_query = f"""
+    WITH RECURSIVE 
+    Directions (dir_name, start_rad, mid_rad, end_rad) AS (
+        VALUES 
+            ('North',      5.89,  0.0,   0.39),
+            ('North East', 0.39,  0.78,  1.17),
+            ('East',       1.17,  1.57,  1.96),
+            ('South East', 1.96,  2.35,  2.74),
+            ('South',      2.74,  3.14,  3.53),
+            ('South West', 3.53,  3.92,  4.31),
+            ('West',       4.31,  4.71,  5.10),
+            ('North West', 5.10,  5.49,  5.89)
+    ),
+    
+    Geoms AS (
+        SELECT id, geom, ST_Centroid(geom) as center, ST_GeometryType(geom) as gtype
+        FROM {table_name}
+    ),
+
+    Cones AS (
+        SELECT 
+            s.id as source_id,
+            d.dir_name,
+            ST_MakePolygon(ST_MakeLine(ARRAY[
+                s.center,
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.start_rad), ST_Y(s.center) + {MAX_RADIUS} * cos(d.start_rad)),
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.mid_rad),   ST_Y(s.center) + {MAX_RADIUS} * cos(d.mid_rad)),
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.end_rad),   ST_Y(s.center) + {MAX_RADIUS} * cos(d.end_rad)),
+                s.center
+            ])) as cone_geom
+        FROM Geoms s
+        CROSS JOIN Directions d
+    )
+
+    SELECT 
+        t.id as target_name,
+        t.gtype as target_type,
+        c.dir_name as direction,
+        s.id as source_name,
+        s.gtype as source_type,
         
-#         polygon_style = "regular" if is_regular_polygon else "irregular"
-
-#         # Helper to insert
-#         def insert_row(real_id, prefix, geom, gtype, style, verts, area):
-#             str_id = f"{prefix}{real_id}"
-#             raw_lx, raw_ly = label_positions.get(str_id, (0, 0)) # Retrieve coords
+        CASE 
+            WHEN t.gtype ILIKE '%Polygon%' THEN 
+                ST_Area(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Area(t.geom), 0)
             
-#             lx = float(raw_lx)
-#             ly = float(raw_ly)
+            WHEN t.gtype ILIKE '%Line%' THEN 
+                ST_Length(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Length(t.geom), 0)
             
-#             cur.execute(
-#                 """INSERT INTO generated_geometries (id, geom, geom_type, style, vertices, area, label_x, label_y)
-#                    VALUES (%s, ST_GeomFromText(%s, 0), %s, %s, %s, %s, %s, %s);""",
-#                 (str_id, geom.wkt, gtype, style, verts, area, lx, ly)
-#             )
+            ELSE 
+                CASE WHEN ST_Intersects(t.geom, c.cone_geom) THEN 1.0 ELSE 0.0 END
+        END as overlap_ratio
 
-#         for rid, p in polygon_data: insert_row(rid, "P", p, 'Polygon', polygon_style, len(p.exterior.coords)-1, p.area)
-#         for rid, p in point_data:   insert_row(rid, "Pt", p, 'Point', 'point', 1, 0)
-#         for rid, l in line_data:    insert_row(rid, "L", l, 'LineString', 'straight', len(l.coords), 0)
+    FROM Geoms t
+    JOIN Geoms s ON t.id != s.id
+    JOIN Cones c ON c.source_id = s.id
+    
+    WHERE 
+        CASE 
+            WHEN t.gtype ILIKE '%Polygon%' THEN 
+                (ST_Area(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Area(t.geom), 0)) > 0.7
+            WHEN t.gtype ILIKE '%Line%' THEN 
+                (ST_Length(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Length(t.geom), 0)) > 0.7
+            ELSE 
+                ST_Intersects(t.geom, c.cone_geom)
+        END;
+    """
 
-#         conn.commit()
-#         print("Successfully saved all geometries and labels to database.")
-#     except (Exception, psycopg2.DatabaseError) as error:
-#         print(f"Database error: {error}")
-#     finally:
-#         if conn: conn.close()
+    try:
+        conn = psycopg2.connect(**db_config)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql_query)
+        rows = cur.fetchall()
+
+        results_list = []
+        for row in rows:
+            item = [
+                [row['target_type'].replace('ST_', ''), row['target_name']], 
+                [row['source_type'].replace('ST_', ''), row['source_name']],
+                row['direction']
+            ]
+            results_list.append(item)
+
+        conn.close()
+        return results_list
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
+    
+def merge_relationships(existing_data, new_sql_data):
+    existing_pairs = set()
+    
+    for item in existing_data:
+        obj1 = tuple(item[0])
+        obj2 = tuple(item[1])
+        existing_pairs.add((obj1, obj2))
+
+    final_list = list(existing_data)
+
+    for item in new_sql_data:
+        obj1 = tuple(item[0])
+        obj2 = tuple(item[1])
+        
+        if ((obj1, obj2) not in existing_pairs) and ((obj2, obj1) not in existing_pairs):
+            final_list.append(item)
+            
+    return final_list
 
 if __name__ == '__main__':
     # --- Configuration ---
@@ -769,8 +679,8 @@ if __name__ == '__main__':
         "dbname": "postgres",
         "user": "postgres",
         "password": "jiYOON7162@",
-        "host": "localhost", # e.g., "localhost" or an IP address
-        "port": "5432" # Default PostgreSQL port
+        "host": "localhost",
+        "port": "5432"
     }
 
     # --- Polygon Stuff ---
@@ -831,13 +741,10 @@ if __name__ == '__main__':
     overlapping_indices = indices[off_1 : off_1 + NUM_OVERLAPPING_PAIRS*2]
     off_2 = off_1 + NUM_OVERLAPPING_PAIRS*2
     contained_indices = indices[off_2 : off_2 + NUM_CONTAINED_PAIRS*2]
-    # off_3 = off_2 + NUM_TOUCHING_PAIRS*2
-    # touched_indices = indices[off_3 : off_3 + NUM_TOUCHING_PAIRS*2]
 
     modified_polygons = create_aligned_edges(initial_polygons, aligned_indices, all_relationships)
     modified_polygons = create_overlapping_pairs(modified_polygons, overlapping_indices, all_relationships)
     modified_polygons = create_contained_pairs(modified_polygons, contained_indices, all_relationships)
-    # modifi_polygons = create_touching_pairs(modified_polygons, touched_indices)    # TODO: Need to fix touching function
 
     # --- Repositioning to satisfy disjoint condition ---
     print("Repositioning free polygons to ensure they are disjoint...")
@@ -885,15 +792,6 @@ if __name__ == '__main__':
             print(f"Warning: Could not find a disjoint spot for polygon {free_idx} after {MAX_ATTEMPTS_PER_PLACEMENT} attempts. Placing it anyway.")
             modified_polygons[free_idx] = poly_to_check # Add its last position
             placed_free_polygons_so_far.append(poly_to_check)
-
-    # # --- Generate Points and Lines (as before) ---
-    # print(f"Generating {NUM_POINTS} random points...")
-    # new_points = generate_random_points(CANVAS_BOUNDS, NUM_POINTS)
-    # print(f"Generating {NUM_LINES} random lines...")
-    # straight_lines, curly_lines = generate_random_lines(
-    #     CANVAS_BOUNDS, NUM_LINES, STRAIGHT_LINES_ONLY, 
-    #     LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
-    # )
             
     all_poly_footprint = unary_union(modified_polygons)
     placed_free_geometries = [] # Keep track of free lines/points
@@ -908,7 +806,6 @@ if __name__ == '__main__':
         if random.random() < LINE_CONTAINMENT_PROBABILITY:
             container_idx = random.choice(range(len(modified_polygons)))
             container_poly = modified_polygons[container_idx]
-            # container_poly = random.choice(modified_polygons)
             line_to_place = generate_one_line(
                 CANVAS_BOUNDS, STRAIGHT_LINES_ONLY, 
                 LINE_LENGTH_RANGE, LINE_SEGMENT_RANGE
@@ -1015,12 +912,13 @@ if __name__ == '__main__':
             CREATE_REGULAR_SHAPES, DB_CONFIG
         )
 
+    # Add location information:
+    location_list = get_relative_location(DB_CONFIG)
+    all_relationships = merge_relationships(all_relationships, location_list)
+
     relationship_data = {"relationships": all_relationships}
-    # print("\n--- Generated Relationships ---")
     file_path = f"relationship.json"
     with open(file_path, "w") as f:
         json.dump(relationship_data, f, indent=4)
 
     print('Relationship saved to relationship.json')
-    # print(json.dumps(relationship_data, indent=4))
-    # print("---------------------------------")

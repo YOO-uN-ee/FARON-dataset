@@ -1,0 +1,723 @@
+[
+    {
+        "subject_id": 1,
+        "relationship": "contains",
+        "object_id": 2,
+        "subject_color": "Magenta",
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "left of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "behind",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "left of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "in front of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 1,
+        "subject_color": "Magenta",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "right of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "left of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "behind",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "left of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "in front of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 2,
+        "subject_color": "Blue",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "left of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "left of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "left of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 3,
+        "subject_color": "Orange",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "right of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "right of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "right of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 4,
+        "subject_color": "Green",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "in front of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "in front of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "in front of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 5,
+        "subject_color": "Cyan",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "right of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "behind",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "right of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "behind",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "right of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "behind",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "right of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 6,
+        "subject_color": "Yellow",
+        "relationship": "in front of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "left of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "right of",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 7,
+        "subject_color": "Purple",
+        "relationship": "behind",
+        "object_id": 8,
+        "object_color": "Red"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 1,
+        "object_color": "Magenta"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 2,
+        "object_color": "Blue"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 3,
+        "object_color": "Orange"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 4,
+        "object_color": "Green"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 5,
+        "object_color": "Cyan"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "behind",
+        "object_id": 6,
+        "object_color": "Yellow"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "left of",
+        "object_id": 7,
+        "object_color": "Purple"
+    },
+    {
+        "subject_id": 8,
+        "subject_color": "Red",
+        "relationship": "in front of",
+        "object_id": 7,
+        "object_color": "Purple"
+    }
+]

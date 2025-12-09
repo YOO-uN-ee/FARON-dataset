@@ -1,8 +1,9 @@
 {
     "question": "Which Points in the image are within a Polygon that are within with P2?",
     "reasoning": [
-        "Step 1: Find `Polygon` geometries that match `within` with P2.",
-        "Step 2: Find `Point` geometries that match `within` with the results from Step 1."
+        A -> B -> C
+        "Step 1: Find <geom_type> geometries that match <spationa-Operation> with <id>.",
+        "Step 2: Find `Point` geometries that match `within` with the results from P2."
     ],
     "sql": "SELECT T_Final.id\nFROM generated_geometries AS T_Final\nJOIN generated_geometries AS T_Bridge\nON ST_Covers(T_Bridge.geom, T_Final.geom)\nJOIN generated_geometries AS T_Target\nON ST_Covers(T_Target.geom, T_Bridge.geom)\nWHERE\nT_Final.geom_type = 'Point'\nAND T_Bridge.geom_type = 'Polygon'\nAND T_Target.id = 'P2'\nAND T_Target.geom_type = 'Polygon'\nAND T_Bridge.id <> T_Target.id\nAND T_Final.id <> T_Bridge.id;"
 }
