@@ -12,7 +12,7 @@ def diversify_question(original_question):
     device = 0 if torch.cuda.is_available() else -1
     generator = pipeline(
         "text2text-generation", 
-        model="google/flan-t5-large", 
+        model="meta-llama/Llama-3.1-8B-Instruct", 
         device=device
     )
 
