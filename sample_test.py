@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 from adjustText import adjust_text
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import json
 
 # ==========================================
@@ -347,6 +348,117 @@ class PlacementManager:
                     
         return None
 
+def get_relative_location(db_config, table_name='generated_geometries'):
+    MAX_RADIUS = 100000 
+
+    sql_query = f"""
+    WITH RECURSIVE 
+    Directions (dir_name, start_rad, mid_rad, end_rad) AS (
+        VALUES 
+            ('North',      5.89,  0.0,   0.39),
+            ('North East', 0.39,  0.78,  1.17),
+            ('East',       1.17,  1.57,  1.96),
+            ('South East', 1.96,  2.35,  2.74),
+            ('South',      2.74,  3.14,  3.53),
+            ('South West', 3.53,  3.92,  4.31),
+            ('West',       4.31,  4.71,  5.10),
+            ('North West', 5.10,  5.49,  5.89)
+    ),
+    
+    Geoms AS (
+        SELECT id, geom, ST_Centroid(geom) as center, ST_GeometryType(geom) as gtype
+        FROM {table_name}
+    ),
+
+    Cones AS (
+        SELECT 
+            s.id as source_id,
+            d.dir_name,
+            ST_MakePolygon(ST_MakeLine(ARRAY[
+                s.center,
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.start_rad), ST_Y(s.center) + {MAX_RADIUS} * cos(d.start_rad)),
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.mid_rad),   ST_Y(s.center) + {MAX_RADIUS} * cos(d.mid_rad)),
+                ST_MakePoint(ST_X(s.center) + {MAX_RADIUS} * sin(d.end_rad),   ST_Y(s.center) + {MAX_RADIUS} * cos(d.end_rad)),
+                s.center
+            ])) as cone_geom
+        FROM Geoms s
+        CROSS JOIN Directions d
+    )
+
+    SELECT 
+        t.id as target_name,
+        t.gtype as target_type,
+        c.dir_name as direction,
+        s.id as source_name,
+        s.gtype as source_type,
+        
+        CASE 
+            WHEN t.gtype ILIKE '%Polygon%' THEN 
+                ST_Area(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Area(t.geom), 0)
+            
+            WHEN t.gtype ILIKE '%Line%' THEN 
+                ST_Length(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Length(t.geom), 0)
+            
+            ELSE 
+                CASE WHEN ST_Intersects(t.geom, c.cone_geom) THEN 1.0 ELSE 0.0 END
+        END as overlap_ratio
+
+    FROM Geoms t
+    JOIN Geoms s ON t.id != s.id
+    JOIN Cones c ON c.source_id = s.id
+    
+    WHERE 
+        CASE 
+            WHEN t.gtype ILIKE '%Polygon%' THEN 
+                (ST_Area(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Area(t.geom), 0)) > 0.7
+            WHEN t.gtype ILIKE '%Line%' THEN 
+                (ST_Length(ST_Intersection(t.geom, c.cone_geom)) / NULLIF(ST_Length(t.geom), 0)) > 0.7
+            ELSE 
+                ST_Intersects(t.geom, c.cone_geom)
+        END;
+    """
+
+    try:
+        conn = psycopg2.connect(**db_config)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql_query)
+        rows = cur.fetchall()
+
+        results_list = []
+        for row in rows:
+            item = [
+                [row['target_type'].replace('ST_', ''), row['target_name']], 
+                [row['source_type'].replace('ST_', ''), row['source_name']],
+                row['direction']
+            ]
+            results_list.append(item)
+
+        conn.close()
+        return results_list
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
+    
+def merge_relationships(existing_data, new_sql_data):
+    existing_pairs = set()
+    
+    for item in existing_data:
+        obj1 = tuple(item[0])
+        obj2 = tuple(item[1])
+        existing_pairs.add((obj1, obj2))
+
+    final_list = list(existing_data)
+
+    for item in new_sql_data:
+        obj1 = tuple(item[0])
+        obj2 = tuple(item[1])
+        
+        if ((obj1, obj2) not in existing_pairs) and ((obj2, obj1) not in existing_pairs):
+            final_list.append(item)
+            
+    return final_list
+
 # ==========================================
 # 3. MAIN EXECUTION
 # ==========================================
@@ -574,6 +686,9 @@ if __name__ == '__main__':
             print(f"DB Error: {e}")
 
     save_to_db()
+
+    location_list = get_relative_location(DB_CONFIG)
+    all_relationships = merge_relationships(all_relationships, location_list)
     
     # Save JSON
     with open('relationship.json', 'w') as f:

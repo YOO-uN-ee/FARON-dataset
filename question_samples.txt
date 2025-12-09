@@ -1,0 +1,3 @@
+What is the Line that is within the Polygon that is borders P1?
+What is the Point that is within the Polygon that is borders P0?
+What is the Point that is within the Polygon that is borders P2?

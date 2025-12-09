@@ -1,9 +1,8 @@
 {
-    "question": "What is the Line that is within the Polygon that is borders P1?",
+    "question": "Identify the Point that is both within P2 and North East P5.",
     "reasoning": [
-        "Step 1: Locate P1.",
-        "Step 2: Find the Polygon that matches 'borders' with P1.",
-        "Step 3: Find the Line that matches 'within' with P0."
+        "Step 1: Find Points that are within P2.",
+        "Step 2: Filter that list for items that are also North East P5."
     ],
-    "sql": "SELECT T_Final.id\nFROM generated_geometries AS T_Final\nJOIN generated_geometries AS T_Bridge ON ST_Covers(T_Bridge.geom, T_Final.geom)\nJOIN generated_geometries AS T_Seed ON ST_DWithin(T_Bridge.geom, T_Seed.geom, 1.0)\nWHERE\nT_Final.geom_type = 'Line'\nAND T_Bridge.id = 'P0'\nAND T_Seed.id = 'P1'\nAND T_Final.id <> T_Bridge.id;"
+    "sql": "SELECT T_Target.id\nFROM generated_geometries AS T_Target\nJOIN generated_geometries AS T_S1 ON ST_Covers(T_S1.geom, T_Target.geom)\nJOIN generated_geometries AS T_S2 ON (degrees(ST_Azimuth(ST_Centroid(T_S2.geom), ST_Centroid(T_Target.geom))) >= 22.5 AND degrees(ST_Azimuth(ST_Centroid(T_S2.geom), ST_Centroid(T_Target.geom))) < 67.5)\nWHERE\nT_Target.geom_type = 'Point'\nAND T_S1.id = 'P2'\nAND T_S2.id = 'P5'\nAND T_Target.id <> T_S1.id\nAND T_Target.id <> T_S2.id;"
 }
