@@ -12,7 +12,7 @@ def diversify_question(original_question):
     device = 0 if torch.cuda.is_available() else -1
     generator = pipeline(
         "text2text-generation", 
-        model="google/flan-t5-large", 
+        model="meta-llama/Llama-3.3-70B-Instruct", 
         device=device
     )
 
@@ -26,7 +26,7 @@ def diversify_question(original_question):
     Requirements:
     1. Grammar Fix: Strictly correct the grammar.
     2. Synonym Swap: Use different words (e.g., "contained by", "enclosed in", "adjacent", "neighboring").
-    3. Structural Change: Rewrite the sentence structure entirely.
+    3. Structural Change: Rewrite the sentence structure entirely. But still end as a question.
     
     Output:
     """
